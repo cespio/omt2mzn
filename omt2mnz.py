@@ -8,7 +8,7 @@ Set |
 ArrayBit |
 
 '''
-from pysmt.smtlib.parser import *
+from pyomt.smtlib.parser import *
 import sys
 
 
@@ -19,23 +19,47 @@ class NoLogicDefined(StandardError):
 
 
 #function to parse LIA 
-#TODO -> define also a sort of return
 def write_list_variables(variables,file_out):
     for var in variables.keys():
-        print(type(var))
-        print(type((variables[var])))
-        file_out.write("var "+variables[var]+":"+str(var))
+        file_out.write("var "+str(variables[var]).lower()+":"+str(var)+";\n")
 
-    
+def write_assertions(asserts_list,file_out):
+    for el in asserts_list:
+        assert_str = str(el).strip("[|]").replace("|","\/").replace("&","/\\")
+        file_out.write("constraint "+assert_str+";\n")
+
+#the use of a dictionary can lead to a wrong sort of the command
+#NB -> minizinc allows only one solve instruction at time
+def write_commands(commands_dict,file_out):
+    for comm in commands_dict:
+        if comm=='check-sat':
+            if 'maximize' in commands_dict or 'minimize' in commands_dict:
+                file_out.write("")
+            else:
+                file_out.write("solve satisfability;\n")
+        if comm=='maximize':
+            file_out.write("solve maximize "+commands_dict[comm]+";\n")
+        if comm=='minimize':
+            file_out.write("solve minimize "+commands_dict[comm]+";\n")
+
 
 def parseQF_LIA(commands,out_file):
     file_out=open(out_file,"w") #opening the output file -> maybe useful to use the with statement
     #looking for function, NB as function declaration
-    dict_constant={}
+    constants_dict={}
+    asserts_list=[]
+    commands_dict={}
     for el in commands:
         if el.name=='declare-fun' and len(el.args)==1: #constant condition
-            dict_constant[el.args[0]]=el.args[0].get_type()
-    write_list_variables(dict_constant,file_out)
+            constants_dict[el.args[0]]=el.args[0].get_type()
+        elif el.name=='assert':
+            asserts_list.append(el.args)
+        else:
+            commands_dict[el.name]=el.args
+        print(el)
+    write_list_variables(constants_dict,file_out)
+    write_assertions(asserts_list,file_out)
+    write_commands(commands_dict,file_out)
     
 
 def startParsing(input_file,out_file):

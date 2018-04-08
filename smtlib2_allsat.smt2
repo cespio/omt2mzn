@@ -71,11 +71,12 @@
 ;
 ; GOALS
 ;
-;(maximize x)
-;(maximize y)
+
+(maximize x)
+;(minimize y)
 
 ;(check-allsat (a b e))
-;(get-objectives)
+(get-objectives)
 
 (check-sat)
 
