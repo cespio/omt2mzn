@@ -1,5 +1,5 @@
-var int:x;
-var int:y;
+var float:x;
+var float:y;
 var bool:a;
 var bool:b;
 var bool:c;
