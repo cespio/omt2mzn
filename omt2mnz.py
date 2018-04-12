@@ -41,7 +41,7 @@ def int2float(input_file):
 #function to parse LIA 
 def write_list_variables(variables,file_out):
     for var in variables.keys():
-        file_out.write("var "+str(variables[var]).lower()+":"+str(var)+";\n")
+        file_out.write("var "+str(variables[var]).lower().replace("Real","float")+":"+str(var)+";\n")
 
 def write_assertions(asserts_list,file_out):
     for el in asserts_list:
