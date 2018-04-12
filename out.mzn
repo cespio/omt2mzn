@@ -1,5 +1,7 @@
-var float:x;
-var float:y;
+include "minisearch.mzn";
+array[int] of var int: obj_array;
+var int:x;
+var int:y;
 var bool:a;
 var bool:b;
 var bool:c;
@@ -12,4 +14,6 @@ constraint (e -> (10 < x));
 constraint ((10 < x) -> e);
 constraint (x <= 100);
 constraint (y <= 100);
-solve maximize x;
+function var int: sign(var int: x)=-1*x;
+obj_array=[sign(x),y];
+solve search minimize_lex(obj_array)

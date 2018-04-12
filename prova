@@ -1,0 +1,15 @@
+var real:x;
+var real:y;
+var bool:a;
+var bool:b;
+var bool:c;
+var bool:d;
+var bool:e;
+constraint ((0.0 < (x + y)) <-> a);
+constraint ((((2.0 * x) + (3.0 * y)) < -10.0) <-> c);
+constraint ((a \/ b) /\ (c \/ d));
+constraint (e -> (10.0 < x));
+constraint ((10.0 < x) -> e);
+constraint (x <= 100.0);
+constraint (y <= 100.0);
+solve maximize y;

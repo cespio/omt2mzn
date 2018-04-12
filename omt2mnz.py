@@ -9,7 +9,9 @@ ArrayBit |
 
 '''
 from pyomt.smtlib.parser import *
+from pyomt.exceptions import *
 import sys
+import re
 
 
 class WrongNumbArgs(StandardError):
@@ -17,6 +19,24 @@ class WrongNumbArgs(StandardError):
 class NoLogicDefined(StandardError):
     pass
 
+def int2float(input_file):
+    lines=open(input_file).readlines()
+    temp_file=open(input_file+"_temp","w")
+    flagReal=1
+    for l in lines:
+        if "declare-fun" in l and "Real" in l:
+            flagReal=1
+            break
+    if flagReal==1:
+        for l in lines:
+            temp=re.sub(r"Int",r"Real",l)
+            temp_file.write(re.sub(r"([0-9]+)",r"\1.0",temp))
+    else:
+        for l in lines:
+            temp_file.write(l)
+    temp_file.close()
+    return input_file+"_temp"          
+    
 
 #function to parse LIA 
 def write_list_variables(variables,file_out):
@@ -43,7 +63,7 @@ def write_commands(commands_dict,file_out):
             file_out.write("solve minimize "+commands_dict[comm]+";\n")
 
 
-def parseQF_LIA(commands,out_file):
+def parseQF_linear(commands,out_file):
     file_out=open(out_file,"w") #opening the output file -> maybe useful to use the with statement
     #looking for function, NB as function declaration
     constants_dict={}
@@ -65,16 +85,16 @@ def parseQF_LIA(commands,out_file):
 def startParsing(input_file,out_file):
     parser = SmtLib20Parser() # We read the SMT-LIB Script by creating a Parser From here we can get the SMT-LIB script.
     #get_script_fnname execute the script using a file as source.
-    script = parser.get_script_fname(sys.argv[1]) #The script element contains the structure of the parsed SMTLIBv2 file
+    new_input_f = int2float(input_file)
+    script = parser.get_script_fname(new_input_f)
     commands = script.commands #getting the list of commands (set-logic,declaration,assert,command)
-    if commands[0].name!='set-logic': #checkign the logic of the smtlibv2 input file
-        raise NoLogicDefined('No logic is defined')
-    elif str(commands[0].args[0])=='QF_LIA': #linear integere program
-            parseQF_LIA(commands[1:],out_file) #pushing out the command setlogic
-    
-
+    if commands[0].name!="set-logic": #checkign the logic of the smtlibv2 input file
+        raise NoLogicDefined("No logic is defined")
+    elif str(commands[0].args[0]) in ["QF_LIA","QF_LRA","QF_LIRA"] : #linear integere program
+            parseQF_linear(commands[1:],out_file) #pushing out the command setlogic
+  
 if __name__ == "__main__":
     if len(sys.argv)!=3:
-        raise WrongNumbArgs('Incorrect number of arguments')
+        raise WrongNumbArgs("Incorrect number of arguments")
     else:
         startParsing(sys.argv[1],sys.argv[2])
