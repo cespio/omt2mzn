@@ -19,6 +19,7 @@
 
 ASSERT='assert'
 ASSERT_SOFT='assert-soft' #---optimathsat
+CHECK_ALLSAT='check-allsat'
 CHECK_SAT='check-sat'
 CHECK_SAT_ASSUMING='check-sat-assuming'
 DECLARE_CONST='declare-const'
@@ -56,6 +57,7 @@ SET_MODEL='set-model' #---optimathsat
 
 
 SMT_LIB_2_0 = [
+    CHECK_ALLSAT, #--optimathsat
     SET_LOGIC,
     SET_OPTION,
     SET_INFO,

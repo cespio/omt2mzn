@@ -75,9 +75,9 @@
 (maximize x)
 (maximize y)
 
-;(check-allsat (a b e))
-(get-objectives)
+(check-allsat (a b e))
+;(get-objectives)
 
-(check-sat)
+;(check-sat)
 
 (exit)

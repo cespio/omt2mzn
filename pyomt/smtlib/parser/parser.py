@@ -441,9 +441,11 @@ class SmtLibParser(object):
         MAXMIN='maxmin'     #---optimathsat
         MINMAX='minmax'     #---optimathsat
         SET_MODEL='set-model' #---optimathsat
+        CHECK-ALLSAT='check-allsat' #--optimathsat
         ASSERT_SOFT='assert-soft' #---optimathsat
         '''
         self.commands = {smtcmd.ASSERT : self._cmd_assert,
+                         smtcmd.CHECK_ALLSAT: self._cmd_check_allsat,
                          smtcmd.CHECK_SAT : self._cmd_check_sat,
                          smtcmd.CHECK_SAT_ASSUMING : self._cmd_check_sat_assuming,
                          smtcmd.DECLARE_CONST : self._cmd_declare_const,
@@ -1104,6 +1106,12 @@ class SmtLibParser(object):
         expr = self.get_expression(tokens)
         self.consume_closing(tokens, current)
         return SmtLibCommand(current, [expr])
+    
+    def _cmd_check_allsat(self,current,tokens):
+        """(checka-allsat <terms>)"""
+        params = self.parse_params(tokens, current)
+        self.consume_closing(tokens,current)
+        return SmtLibCommand(current, params)
 
     def _cmd_check_sat(self, current, tokens):
         """(check-sat)"""

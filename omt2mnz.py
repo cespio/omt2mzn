@@ -87,11 +87,16 @@ def startParsing(input_file,out_file):
     #get_script_fnname execute the script using a file as source.
     new_input_f = int2float(input_file)
     script = parser.get_script_fname(new_input_f)
-    commands = script.commands #getting the list of commands (set-logic,declaration,assert,command)
-    if commands[0].name!="set-logic": #checkign the logic of the smtlibv2 input file
+    commands = script.commands #getting the list of commands (set-option,set-logic,declaration,assert,command)
+    commands_name = [cmd.name for cmd in commands]
+    for el in commands:
+        print(el)
+    if "set-logic" not in commands_name: #checkign the logic of the smtlibv2 input file
         raise NoLogicDefined("No logic is defined")
-    elif str(commands[0].args[0]) in ["QF_LIA","QF_LRA","QF_LIRA"] : #linear integere program
-            parseQF_linear(commands[1:],out_file) #pushing out the command setlogic
+    else:
+        logic_name=[cmd.args[0] for cmd in commands if cmd.name=='set-logic']
+        if logic_name in ["QF_LIA","QF_LRA","QF_LIRA"] : #linear integere program
+            parseQF_linear(commands,out_file)
   
 if __name__ == "__main__":
     if len(sys.argv)!=3:
