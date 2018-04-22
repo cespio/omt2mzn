@@ -30,7 +30,8 @@ def int2float(input_file):
     if flagReal==1:
         for l in lines:
             temp=re.sub(r"Int",r"Real",l)
-            temp_file.write(re.sub(r"([0-9]+)",r"\1.0",temp))
+            temp1=re.sub(r"([0-9]+)",r"\1.0",temp)
+            temp_file.write(re.sub(r"([0-9]+)\.0\.([0-9]+)\.0",r"\1.\2",temp1))
     else:
         for l in lines:
             temp_file.write(l)
@@ -41,7 +42,11 @@ def int2float(input_file):
 #function to parse LIA 
 def write_list_variables(variables,file_out):
     for var in variables.keys():
-        file_out.write("var "+str(variables[var]).lower().replace("Real","float")+":"+str(var)+";\n")
+        if "Real" in str(variables[var]):
+            file_out.write("var -2147483646.0..2147483646.0 : "+str(var)+";\n") #se non hanno dominio lo esplicitio
+            #problema con g12 number out of limitis, anche altrisolver come gecode mi davano lo stesso problema
+        else:
+            file_out.write("var "+str(variables[var]).lower()+":"+str(var)+";\n")
 
 def write_assertions(asserts_list,file_out):
     for el in asserts_list:
@@ -76,10 +81,10 @@ def parseQF_linear(commands,out_file):
             asserts_list.append(el.args)
         else:
             commands_dict[el.name]=el.args
-        print(el)
     write_list_variables(constants_dict,file_out)
     write_assertions(asserts_list,file_out)
     write_commands(commands_dict,file_out)
+    file_out.close()
     
 
 def startParsing(input_file,out_file):
@@ -90,12 +95,12 @@ def startParsing(input_file,out_file):
     commands = script.commands #getting the list of commands (set-option,set-logic,declaration,assert,command)
     commands_name = [cmd.name for cmd in commands]
     for el in commands:
-        print(el)
-    if "set-logic" not in commands_name: #checkign the logic of the smtlibv2 input file
+        print el
+    if "set-logic" not in commands_name: #checkin the logic of the smtlibv2 input file
         raise NoLogicDefined("No logic is defined")
     else:
-        logic_name=[cmd.args[0] for cmd in commands if cmd.name=='set-logic']
-        if logic_name in ["QF_LIA","QF_LRA","QF_LIRA"] : #linear integere program
+        logic_name=str([cmd.args[0] for cmd in commands if cmd.name=='set-logic'][0])
+        if logic_name in ["QF_LIA","QF_LRA","QF_LIRA"] : #linear integer program
             parseQF_linear(commands,out_file)
   
 if __name__ == "__main__":
