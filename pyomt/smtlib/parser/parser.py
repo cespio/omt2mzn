@@ -435,9 +435,9 @@ class SmtLibParser(object):
         # Command tokens
 
         '''
+        mancano alcune opzioni su minimize e maximize
         MAXMIN='maxmin'     #---optimathsat
         MINMAX='minmax'     #---optimathsat
-        SET_MODEL='set-model' #---optimathsat
         '''
         self.commands = {smtcmd.ASSERT : self._cmd_assert,
                         smtcmd.ASSERT_SOFT: self._cmd_assert_soft, #--optimathsat
@@ -463,6 +463,8 @@ class SmtLibParser(object):
                          smtcmd.GET_UNSAT_CORE: self._cmd_get_unsat_core,
                          smtcmd.GET_VALUE : self._cmd_get_value,
                          smtcmd.GET_OBJECTIVES: self._cmd_get_objectives, #--optimathast
+                         smtcmd.MAXMIN: self._cmd_maxmin, #--optimathsat
+                         smtcmd.MINMAX: self._cmd_minmax, #--optimathsat
                          smtcmd.MAXIMIZE : self._cmd_maximize, #---optimathsat
                          smtcmd.MINIMIZE : self._cmd_minimize, #---optimathsat
                          smtcmd.POP : self._cmd_pop,
@@ -472,7 +474,7 @@ class SmtLibParser(object):
                          smtcmd.SET_LOGIC : self._cmd_set_logic,
                          smtcmd.SET_OPTION : self._cmd_set_option,
                          smtcmd.SET_INFO : self._cmd_set_info,
-                         smtcmd.SET_MODEL : self._cmd_set_model,
+                         smtcmd.SET_MODEL : self._cmd_set_model, #--optimathsat
                      }
 
     def _reset(self):
@@ -1116,15 +1118,25 @@ class SmtLibParser(object):
         expr = self.get_expression(tokens)
         w_v=0
         id_v="1"
+        flagS=0
         r1 = self.parse_atom(tokens,current)
         if r1==":weight":
             w_v = self.get_expression(tokens)
         elif r1==":id":
             id_v=self.parse_atom(tokens,current)
-        r1 = self.parse_atom(tokens,current)
-        if r1==":id":
-            id_v=self.parse_atom(tokens,current)
-        self.consume_closing(tokens, current)
+        curr_tokens=tokens.consume()
+        if str(curr_tokens)!=")":
+            print(curr_tokens)
+            tokens.add_extra_token(curr_tokens)
+            r1 = self.parse_atom(tokens,current)
+            if r1==":weight":
+                w_v = self.get_expression(tokens)
+            elif r1==":id":
+                id_v=self.parse_atom(tokens,current)
+            self.consume_closing(tokens, current)
+        else:
+            tokens.add_extra_token(curr_tokens)
+            self.consume_closing(tokens, current)
         print([expr,w_v,id_v])
         return SmtLibCommand(current, [expr,w_v,id_v])
     
@@ -1182,7 +1194,7 @@ class SmtLibParser(object):
         return SmtLibCommand(current, [v])
 
     def _cmd_get_value(self, current, tokens):
-        """(get-value (<term>+)"""
+        """(get-value (<term>+))"""
         params = self.parse_expr_list(tokens, current)
         self.consume_closing(tokens, current)
         return SmtLibCommand(current, params)
@@ -1191,10 +1203,26 @@ class SmtLibParser(object):
         """(get-objective)"""
         self.parse_atoms(tokens, current, 0)
         return SmtLibCommand(current, [])
+
+    def _cmd_maxmin(self,current,tokens): #---optimathsat
+        """(maxmin <term> ... <term> [:id <string>] [:signed] [:lower <const_term>] [:upper <const_term>])"""
+        params = self.parse_atoms(tokens,current,min_size=1,max_size=99)
+        print(params)
+        tokens.add_extra_token(")")
+        self.consume_closing(tokens,current)
+        return SmtLibCommand(current, params)
+
+    def _cmd_minmax(self,current,tokens): #---optimathsat
+        """(minmax <term> ... <term> [:id <string>] [:signed] [:lower <const_term>] [:upper <const_term>])"""
+        params = self.parse_atoms(tokens,current,min_size=1,max_size=99)
+        print(params)
+        tokens.add_extra_token(")")
+        self.consume_closing(tokens,current)
+        return SmtLibCommand(current, params)
     
     def _cmd_maximize(self,current,tokens): #---optimathsat
         """(maximixe (<term>))"""
-        params = self.parse_atom(tokens,current) 
+        params = self.parse_atom(tokens) 
         self.consume_closing(tokens,current)
         return SmtLibCommand(current, params)
     

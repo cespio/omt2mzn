@@ -39,17 +39,18 @@
 
 ;
 ; CORRECT SYNTAX EXAMPLES
-;
-;(assert-soft false                       :id goal) ; weight assumed to be equal 1
-(assert-soft false :weight 0             :id goal)
-;(assert-soft false :weight 5             :id goal)
+(declare-fun x () Real)
+
+(assert-soft false                       :id goal) ; weight assumed to be equal 1
+(assert-soft false :id goal)
+(assert-soft false :weight 5             :id goal)
 (assert-soft false :weight 0.5           :id goal)
 (assert-soft false :weight (+ 3 (/ 4 2)) :id goal) ; unsupported by Z3 4.6.0
-;(assert-soft false :weight w1            :id goal) ; unsupported by Z3 4.6.0
-;(assert-soft false :weight (/ 2 4)       :id goal) ; unsupported by Z3 4.6.0
-;(assert-soft false :weight (- 16)        :id goal) ; unsupported by Z3 4.6.0
-;(assert-soft false :weight (- (/ 2 4))   :id goal) ; unsupported by Z3 4.6.0
-;(assert-soft false :weight (- 0.5)       :id goal) ; unsupported by Z3 4.6.0
+(assert-soft false :weight w1            :id goal) ; unsupported by Z3 4.6.0
+(assert-soft false :weight (/ 2 4)       :id goal) ; unsupported by Z3 4.6.0
+(assert-soft false :weight (- 16)        :id goal) ; unsupported by Z3 4.6.0
+(assert-soft false :weight (- (/ 2 4))   :id goal) ; unsupported by Z3 4.6.0
+(assert-soft false :weight (- 0.5)       :id goal) ; unsupported by Z3 4.6.0
 
 ;
 ; INCORRECT SYNTAX EXAMPLES

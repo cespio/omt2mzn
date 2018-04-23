@@ -7,6 +7,12 @@ Non Linear Arithmetic  (Integer & Real) | QF_NIA QF_NRA
 Set |
 ArrayBit |
 
+
+TODO:
+- verificare opzioni di set-opt option
+- aggiungere parsing opzioni di di minimize/maximize
+-
+
 '''
 from pyomt.smtlib.parser import *
 from pyomt.exceptions import *
@@ -29,9 +35,20 @@ def int2float(input_file):
             break
     if flagReal==1:
         for l in lines:
+            new_l=[]
+            for w in l.strip().split(" "):
+                if w=="Int":
+                    new_l.append("Real")
+                elif w.isdigit():
+                    new_l.append("0."+w)
+                else:
+                    new_l.append(w)
+            temp_file.write(" ".join(new_l))
+            '''
             temp=re.sub(r"Int",r"Real",l)
             temp1=re.sub(r"([0-9]+)",r"\1.0",temp)
             temp_file.write(re.sub(r"([0-9]+)\.0\.([0-9]+)\.0",r"\1.\2",temp1))
+            '''
     else:
         for l in lines:
             temp_file.write(l)

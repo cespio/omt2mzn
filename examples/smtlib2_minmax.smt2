@@ -23,9 +23,9 @@
 ;
 ; PROBLEM
 ;
-(declare-fun l0 () Int)
-(declare-fun l1 () Int)
-(declare-fun l2 () Int)
+(declare-fun a () Int)
+(declare-fun b () Int)
+(declare-fun c () Int)
 (assert (< l0 10))
 (assert (< l1 12))
 (assert (< l2 14))
@@ -33,7 +33,7 @@
 ;
 ; GOAL
 ;
-(minmax l0 l1 l2 :id my_cost)
+(maxmin l0 l1 l2 :id my cost)
 
 ;
 ; OPTIMIZATION
