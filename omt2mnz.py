@@ -10,12 +10,13 @@ ArrayBit |
 Define function as parameter
 Declare function as var
 
-
+Minisearch solo per int e non real
 TODO:
 - verificare opzioni di set-opt option
 - floating point parser
 - aggiunger controllo ottimizzazione, se boxed(+file), se lex as you know
 - nb per bit vector, un bit in piu per il segno
+- assert soft id per variables typechecking
 '''
 from pyomt.smtlib.parser import *
 from pyomt.exceptions import *
@@ -55,14 +56,17 @@ def preproc(input_file):
         for l in nl:
             new_l=[]
             l2=l.replace("(","( ").replace(")"," )")
-            for w in l2.split(" "):
-                if w=="Int":
-                    new_l.append("Real")
-                elif w.isdigit():
-                    new_l.append(w+".0")
-                else:
-                    new_l.append(w)
-            temp_file.write(" ".join(new_l))
+            if "push" not in l2 and "pop" not in l2:
+                for w in l2.split(" "):
+                    if w=="Int":
+                        new_l.append("Real")
+                    elif w.isdigit():
+                        new_l.append(w+".0")
+                    else:
+                        new_l.append(w)
+                temp_file.write(" ".join(new_l))
+            else:
+                temp_file.write(l2)
             '''
             temp=re.sub(r"Int",r"Real",l)
             temp1=re.sub(r"([0-9]+)",r"\1.0",temp)
@@ -92,6 +96,8 @@ def write_list_variables(variables,file_out):
             ret=1
         elif len(variables[var])==2:
             type,name=variables[var][0],variables[var][1]
+            if "Real" in str(type):
+                type="float"
             file_out.write("par "+str(type).lower()+": "+str(var)+" = "+str(name)+";\n")
         elif len(variables[var])==1:
             type=variables[var][0]
@@ -102,6 +108,29 @@ def write_assertions(asserts_list,file_out):
     for el in asserts_list:
         assert_str = str(el).strip("[|]").replace("|","\/").replace("&","/\\")
         file_out.write("constraint "+assert_str+";\n")
+
+def write_assertions_soft(asserts_soft_list,file_out,flag):
+    #catch all the ones with the same id, then construct the constraint for the cost, name of variable equal to the id
+    set_cost_variables = set([l[-1] for l in asserts_soft_list]) #one variable for each of them
+    var_index = {name:0 for name in set_cost_variables}
+    var_weight = {}
+    for v in set_cost_variables:
+        if flag:
+            file_out.write("var float:"+v+";\n")
+        else:
+            file_out.write("var int:"+v+";\n")
+    for el in asserts_soft_list:
+        file_out.write("var bool:"+el[-1]+"_"+str(var_index[el[-1]])+";\n")
+        file_out.write("constraint ("+el[-1]+"_"+str(var_index[el[-1]])+"="+str(el[0])+");\n")
+        var_weight[el[-1]+"_"+str(var_index[el[-1]])]=el[1]
+        var_index[el[-1]]+=1
+    for cost in set_cost_variables:
+        file_out.write("constraint ("+cost+"=")
+        str_ap=[]
+        for k in var_weight:
+            if cost in k:
+                str_ap.append("not("+str(k)+")*"+str(var_weight[k]))
+        file_out.write("+".join(str_ap)+");\n")
 
 def write_commands_lex(commands_list,flag,file_out): #if 1 is real
     new_var_list=[]
@@ -141,16 +170,17 @@ def write_commands_lex(commands_list,flag,file_out): #if 1 is real
     file_out.write("solve search minimize_lex(obj_array);\n")
 
 
-def write_stack_lex(var_dict,asserts_list,commands_list,logic_name,out_file):
+def write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,logic_name,out_file):
     file_out=open(out_file,"w")
     file_out.write("include \"minisearch.mzn\";\n")
     flag=write_list_variables_lex(var_dict,file_out) #flag for the type of the variables
     write_assertions(asserts_list,file_out)
+    write_assertions_soft(asserts_soft_list,file_out,flag)
     #flag for the type of the variables
     write_commands_lex(commands_list,flag,file_out)
     file_out.close()
 
-def write_stack_box(var_dict,asserts_list,commands_list,logic_name,out_file):
+def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,logic_name,out_file):
     #for each box new file
     #in commands_list only maximize and minimize
     i=0
@@ -166,6 +196,7 @@ def write_stack_box(var_dict,asserts_list,commands_list,logic_name,out_file):
         else:
             file_out.write("var int:"+new_var+";\n")
         write_assertions(asserts_list,file_out)
+        write_assertions_soft(asserts_soft_list,file_out,flag)
         #writing the maximize and the minimize
         args_inner=args[1]
         if ":upper" in args_inner:
@@ -183,6 +214,7 @@ def write_stack_box(var_dict,asserts_list,commands_list,logic_name,out_file):
             file_out.write("solve maximize "+new_var+";\n")
         else:
             file_out.write("solve minimize "+new_var+";\n")
+        file_out.close()
 
 #considering the case to unroll the  stack
 def write_stack(stack,logic_name,out_file):
@@ -190,6 +222,7 @@ def write_stack(stack,logic_name,out_file):
     flat_stack=[item for l in stack for item in l]
     var_dict={}
     asserts_list=[]
+    asserts_soft_list=[]
     commands_list=[] #maximize/minimize
     set_priority_option=""
     for el in flat_stack:
@@ -199,15 +232,17 @@ def write_stack(stack,logic_name,out_file):
             var_dict[el.args[0]]=[el.args[2],el.args[3]] #[type,value]
         elif el.name=='assert':
             asserts_list.append(el.args)
+        elif el.name=='assert-soft':
+            asserts_soft_list.append(el.args)
         elif el.name=='set-option' and el.args[0]==':opt.priority':  #keep the last one
             set_priority_option=el.args[1]
         elif el.name=='maximize' or el.name=='minimize':
             commands_list.append((el.name,el.args))
         #TODO:how to manage the setting model?
     if set_priority_option == 'lex': #lexicographic order 
-        write_stack_lex(var_dict,asserts_list,commands_list,logic_name,out_file)
+        write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,logic_name,out_file)
     elif set_priority_option == 'box': #boxed different files
-        write_stack_box(var_dict,asserts_list,commands_list,logic_name,out_file)
+        write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,logic_name,out_file)
 
 #TODO: modificare, passare la logica di interesse come parametro
 def parse_stack(commands,logic_name,out_file):
