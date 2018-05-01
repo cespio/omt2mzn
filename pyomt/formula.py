@@ -602,7 +602,6 @@ class FormulaManager(object):
         if _value >= 2**width:
             raise PysmtValueError("Cannot express %d in %d bits" \
                                   % (_value, width))
-
         return self.create_node(node_type=op.BV_CONSTANT,
                                 args=tuple(),
                                 payload=(_value, width))
@@ -815,7 +814,9 @@ class FormulaManager(object):
         """Returns the SIGNED LOWER-THAN-OR-EQUAL-TO comparison for BV."""
         return self.create_node(node_type=op.BV_SLE,
                                 args=(left, right))
-
+    def TO_BV(self,left,right): #--optimathsat
+        return self.create_node(node_type=op.TO_BV,
+                                args=(left, right))
     def BVComp(self, left, right):
         """Returns a BV of size 1 equal to 0 if left is equal to right,
         otherwise 1 is returned."""

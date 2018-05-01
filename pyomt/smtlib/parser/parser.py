@@ -396,6 +396,7 @@ class SmtLibParser(object):
                             'bvsub':self._operator_adapter(mgr.BVSub),
                             'bvult':self._operator_adapter(mgr.BVULT),
                             'bvxor':self._operator_adapter(mgr.BVXor),
+                            'to_bv':self._operator_adapter(mgr.TO_BV),
                             '_':self._smtlib_underscore,
                             # Extended Functions
                             'bvnand':self._operator_adapter(mgr.BVNand),
@@ -814,7 +815,7 @@ class SmtLibParser(object):
                     fun(stack, tokens, tk)
                 else:
                     stack[-1].append(self.atom(tk, mgr))
-
+    
             elif tk == ")":
                 try:
                     lst = stack.pop()
@@ -1012,6 +1013,16 @@ class SmtLibParser(object):
             res.append(self.parse_type(tokens, command, additional_token=current))
             current = tokens.consume()
         return res
+    
+    def parse_all_params(self,tokens,command): #optimathasat
+        """Parses a list of types from the tokens"""
+        self.consume_opening(tokens, command)
+        current = tokens.consume()
+        res = []
+        while current != ")":
+            res.append(self.parse_atom(tokens,current))
+            current = tokens.consume()
+        return res
 
     def parse_named_params(self, tokens, command):
         """Parses a list of names and type from the tokens"""
@@ -1048,7 +1059,6 @@ class SmtLibParser(object):
     def consume_closing(self, tokens, command):
         """ Consumes a single ')' """
         p = tokens.consume()
-        print(p)
         if p != ")":
             raise PysmtSyntaxError("Unexpected token '%s' in %s command. " \
                                    "Expected ')' at %s" % #---optimathsat
@@ -1118,7 +1128,6 @@ class SmtLibParser(object):
         expr = self.get_expression(tokens)
         w_v=0
         id_v="1"
-        flagS=0
         r1 = self.parse_atom(tokens,current)
         if r1==":weight":
             w_v = self.get_expression(tokens)
@@ -1126,7 +1135,6 @@ class SmtLibParser(object):
             id_v=self.parse_atom(tokens,current)
         curr_tokens=tokens.consume()
         if str(curr_tokens)!=")":
-            print(curr_tokens)
             tokens.add_extra_token(curr_tokens)
             r1 = self.parse_atom(tokens,current)
             if r1==":weight":
@@ -1137,7 +1145,6 @@ class SmtLibParser(object):
         else:
             tokens.add_extra_token(curr_tokens)
             self.consume_closing(tokens, current)
-        print([expr,w_v,id_v])
         return SmtLibCommand(current, [expr,w_v,id_v])
     
     def _cmd_check_allsat(self,current,tokens):
@@ -1221,21 +1228,41 @@ class SmtLibParser(object):
         return SmtLibCommand(current, params)
     
     def _cmd_maximize(self,current,tokens): #---optimathsat
-        """(maximixe (<term>))"""
-        params = self.parse_atom(tokens) 
+        """(maximize <term> [:id <string>] [:signed]
+[:lower <const_term>] [:upper <const_term>])"""
+        try:
+            params = self.get_expression(tokens)
+        except PysmtSyntaxError:
+            params = self.parse_atom(tokens,current)
+        try:
+            params1 = self.parse_atoms(tokens,current,min_size=1,max_size=99)
+            tokens.add_extra_token(")")
+        except PysmtSyntaxError:
+            params1 = []
+            tokens.add_extra_token(")")
         self.consume_closing(tokens,current)
-        return SmtLibCommand(current, params)
+        return SmtLibCommand(current, [params]+[params1])
     
     def _cmd_minimize(self,current,tokens): #---optimathsat
-        """(minimize (<term>))"""
-        params = self.parse_atom(tokens,current) 
+        """(minimize <term> [:id <string>] [:signed]
+[:lower <const_term>] [:upper <const_term>])"""
+        try:
+            params = self.get_expression(tokens)
+        except PysmtSyntaxError:
+            params = self.parse_atom(tokens,current)
+        try:
+            params1 = self.parse_atoms(tokens,current,min_size=1,max_size=99)
+            tokens.add_extra_token(")")
+        except PysmtSyntaxError:
+            params1 = []
+            tokens.add_extra_token(")")
         self.consume_closing(tokens,current)
-        return SmtLibCommand(current, params)
+        return SmtLibCommand(current, [params]+[params1])
     
     def _cmd_declare_fun(self, current, tokens):
         """(declare-fun <symbol> (<sort>*) <sort>)"""
         var = self.parse_atom(tokens, current)
-        params = self.parse_params(tokens, current)
+        params = self.parse_params(tokens, current) 
         typename = self.parse_type(tokens, current)
         self.consume_closing(tokens, current)
 
@@ -1249,6 +1276,17 @@ class SmtLibParser(object):
         else:
             self.cache.bind(var, v)
         return SmtLibCommand(current, [v])
+    
+    def _cmd_define_fun_optimath(self, current, tokens):
+        var = self.parse_atom(tokens, current)
+        params = self.parse_all_params(tokens, current)
+        try:
+            typename = self.parse_type(tokens, current)
+        except PysmtSyntaxError:
+            typename = self.parse_all_params(tokens, current)
+        self.consume_closing(tokens, current)
+        return SmtLibCommand(current, [var,params,typename])
+
 
     def _cmd_define_fun(self, current, tokens):
         """(define-fun <fun_def>)"""

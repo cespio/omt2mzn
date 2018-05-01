@@ -1,4 +1,4 @@
-; -*- SMT0.2 -*-
+; -*- SMT2 -*-
 ;
 ; Author: Patrick Trentin <patrick.trentin@unitn.it>
 ;
@@ -11,15 +11,15 @@
 ;     For more details about assert-soft semantics and
 ;     handling, please consult:
 ;
-;         smtlib0.2_maxsmt.smt0.2
+;         smtlib2_maxsmt.smt2
 ;
 ;     The general syntax of assert-soft in OptiMathSAT is:
 ;
-;         (assert-soft <term> :weight <term> :id <string>)
+;         ( assert-soft <term> :weight <term> :id <string> )
 ;
 ;     Syntax Rules:
 ;     - if :id is missing, it is assumed equal to "I"
-;     - if :weight is missing, it is assumed equal to 0.1
+;     - if :weight is missing, it is assumed equal to 1
 ;     - a :weight <term> must be or rational or integer type
 ;     - a :weight <term> must be a constant value
 ;     - the soft-clause <term> must be of Boolean type
@@ -29,46 +29,46 @@
 ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 
-(set-option :opt.priority box)
-(set-logic QF_LIA)
+( set-option :opt.priority box )
+( set-logic QF_LIA )
 ;
 ; PROBLEM
 ;
-(define-fun w0.1 () Int 0.5)
-(declare-fun x () Real)
+( define-fun w1 (  ) Real 5.0 )
+( declare-fun x (  ) Real )
 
 ;
 ; CORRECT SYNTAX EXAMPLES
-(declare-fun x () Real)
+( declare-fun x (  ) Real )
 
-(assert-soft false                       :id goal) ; weight assumed to be equal 0.1
-(assert-soft false :id goal)
-(assert-soft false :weight 0.5             :id goal)
-(assert-soft false :weight 0.0.0.5           :id goal)
-(assert-soft false :weight (+ 0.3 (/ 0.4 0.2)) :id goal) ; unsupported by Z0.3 0.4.0.6.0.0
-(assert-soft false :weight w0.1            :id goal) ; unsupported by Z0.3 0.4.0.6.0.0
-(assert-soft false :weight (/ 0.2 0.4)       :id goal) ; unsupported by Z0.3 0.4.0.6.0.0
-(assert-soft false :weight (- 0.10.6)        :id goal) ; unsupported by Z0.3 0.4.0.6.0.0
-(assert-soft false :weight (- (/ 0.2 0.4))   :id goal) ; unsupported by Z0.3 0.4.0.6.0.0
-(assert-soft false :weight (- 0.0.0.5)       :id goal) ; unsupported by Z0.3 0.4.0.6.0.0
+( assert-soft false                       :id goal ) ; weight assumed to be equal 1
+( assert-soft false :id goal )
+( assert-soft false :weight 5.0             :id goal )
+( assert-soft false :weight 0.5           :id goal )
+( assert-soft false :weight ( + 3.0 ( / 4.0 2.0 ) ) :id goal ) ; unsupported by Z3 4.6.0
+( assert-soft false :weight w1            :id goal ) ; unsupported by Z3 4.6.0
+( assert-soft false :weight ( / 2.0 4.0 )       :id goal ) ; unsupported by Z3 4.6.0
+( assert-soft false :weight ( - 16.0 )        :id goal ) ; unsupported by Z3 4.6.0
+( assert-soft false :weight ( - ( / 2.0 4.0 ) )   :id goal ) ; unsupported by Z3 4.6.0
+( assert-soft false :weight ( - 0.5 )       :id goal ) ; unsupported by Z3 4.6.0
 
 ;
 ; INCORRECT SYNTAX EXAMPLES
 ;
-;(assert-soft false :weight #b0.00.00.10.0 :id goal) ; type error
-;(assert-soft false :weight x      :id goal) ; non-constant weight
-;(assert-soft false :weight -0.5     :id goal) ; unsupported by OptiMathSAT
-;(assert-soft false :weight -0.0.0.5   :id goal) ; unsupported by OptiMathSAT
+;( assert-soft false :weight #b0010 :id goal ) ; type error
+;( assert-soft false :weight x      :id goal ) ; non-constant weight
+;( assert-soft false :weight -5     :id goal ) ; unsupported by OptiMathSAT
+;( assert-soft false :weight -0.5   :id goal ) ; unsupported by OptiMathSAT
 
 ;
 ; MaxSMT GOAL
 ;
-(minimize goal)
+( maximize goal )
 
 ;
 ; OPTIMIZATION + OPTIMUM VALUE
 ;
-(check-sat)
-(get-objectives)
+( check-sat )
+( get-objectives )
 
-(exit)
+( exit )

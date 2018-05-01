@@ -50,7 +50,7 @@
 ; ENABLE MODEL GENERATION
 ;
 (set-option :produce-models true)
-
+(set-logic QF_LIA)
 ;
 ; PROBLEM
 ;

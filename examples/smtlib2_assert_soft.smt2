@@ -63,7 +63,7 @@
 ;
 ; MaxSMT GOAL
 ;
-(minimize goal)
+(maximize goal)
 
 ;
 ; OPTIMIZATION + OPTIMUM VALUE

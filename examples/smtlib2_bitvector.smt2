@@ -21,7 +21,7 @@
 ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 
-(set-option:opt.priority box)
+(set-option :opt.priority box)
 
 ;
 ; PROBLEM

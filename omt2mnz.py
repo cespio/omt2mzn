@@ -7,12 +7,15 @@ Non Linear Arithmetic  (Integer & Real) | QF_NIA QF_NRA
 Set |
 ArrayBit |
 
+Define function as parameter
+Declare function as var
+
 
 TODO:
 - verificare opzioni di set-opt option
-- aggiungere parsing opzioni di di minimize/maximize
--
-
+- floating point parser
+- aggiunger controllo ottimizzazione, se boxed(+file), se lex as you know
+- nb per bit vector, un bit in piu per il segno
 '''
 from pyomt.smtlib.parser import *
 from pyomt.exceptions import *
@@ -25,22 +28,38 @@ class WrongNumbArgs(StandardError):
 class NoLogicDefined(StandardError):
     pass
 
-def int2float(input_file):
+def preproc(input_file):
     lines=open(input_file).readlines()
     temp_file=open(input_file+"_temp","w")
-    flagReal=1
+    flagReal=0
+    flagBV=0 #TODO: add comment to highlight the presence of the bitvector
+    nl=[]
     for l in lines:
         if "declare-fun" in l and "Real" in l:
             flagReal=1
-            break
+        #looking for bitvector to convert
+        bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)",l)
+        if bv_search:
+            (a1,a2)=bv_search.groups()
+            bv=str('{0:0'+a1+'b}').format(int(a2))        
+            l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)","#b"+bv,l)
+        bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)",l)
+        if bv_search:
+            (a1,a2)=bv_search.groups()
+            bv=str('{0:0'+a1+'b}').format(int(a2))
+            l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)","#b"+bv,l)
+        
+        nl.append(l)
+    lines=nl    
     if flagReal==1:
-        for l in lines:
+        for l in nl:
             new_l=[]
-            for w in l.strip().split(" "):
+            l2=l.replace("(","( ").replace(")"," )")
+            for w in l2.split(" "):
                 if w=="Int":
                     new_l.append("Real")
                 elif w.isdigit():
-                    new_l.append("0."+w)
+                    new_l.append(w+".0")
                 else:
                     new_l.append(w)
             temp_file.write(" ".join(new_l))
@@ -50,64 +69,189 @@ def int2float(input_file):
             temp_file.write(re.sub(r"([0-9]+)\.0\.([0-9]+)\.0",r"\1.\2",temp1))
             '''
     else:
-        for l in lines:
+        for l in nl:
             temp_file.write(l)
     temp_file.close()
     return input_file+"_temp"          
-    
 
-#function to parse LIA 
+def write_list_variables_lex(variables,file_out):
+    ret=write_list_variables(variables,file_out)
+    if ret:
+        file_out.write("array[float] of var float: obj_array;\n")
+    else:
+        file_out.write("array[int] of var int: obj_array;\n")
+    return ret
+
+#return 1 if one of the variables is real
 def write_list_variables(variables,file_out):
+    ret=0
     for var in variables.keys():
-        if "Real" in str(variables[var]):
-            file_out.write("var -2147483646.0..2147483646.0 : "+str(var)+";\n") #se non hanno dominio lo esplicitio
-            #problema con g12 number out of limitis, anche altrisolver come gecode mi davano lo stesso problema
-        else:
-            file_out.write("var "+str(variables[var]).lower()+":"+str(var)+";\n")
+        #In minizinc if no domain is specified there can be problems with the solver like g12
+        if "Real" in str(variables[var][0]) and len(variables[var])!=2:
+            file_out.write("var -2147483646.0..2147483646.0 : "+str(var)+";\n") 
+            ret=1
+        elif len(variables[var])==2:
+            type,name=variables[var][0],variables[var][1]
+            file_out.write("par "+str(type).lower()+": "+str(var)+" = "+str(name)+";\n")
+        elif len(variables[var])==1:
+            type=variables[var][0]
+            file_out.write("var "+str(type).lower()+":"+str(var)+";\n")
+    return ret 
 
 def write_assertions(asserts_list,file_out):
     for el in asserts_list:
         assert_str = str(el).strip("[|]").replace("|","\/").replace("&","/\\")
         file_out.write("constraint "+assert_str+";\n")
 
-#the use of a dictionary can lead to a wrong sort of the command
-#NB -> minizinc allows only one solve instruction at time
-def write_commands(commands_dict,file_out):
-    for comm in commands_dict:
-        if comm=='check-sat':
-            if 'maximize' in commands_dict or 'minimize' in commands_dict:
-                file_out.write("")
-            else:
-                file_out.write("solve satisfability;\n")
-        if comm=='maximize':
-            file_out.write("solve maximize "+commands_dict[comm]+";\n")
-        if comm=='minimize':
-            file_out.write("solve minimize "+commands_dict[comm]+";\n")
+def write_commands_lex(commands_list,flag,file_out): #if 1 is real
+    new_var_list=[]
+    var_name="temp_"
+    print(commands_list)
+    for (name,args) in commands_list: #only maximize or minimize -> manage the lower and the upper
+        upper=None
+        lower=None
+        new_var = var_name+str(len(new_var_list)+1)
+        new_var_list.append(new_var)
+        args_inner=args[1]
+        if ":upper" in args_inner:
+            index=args_inner.index(":upper")
+            upper=args_inner[index+1]
+        if ":lower" in args:
+            index=args_inner.index(":lower")
+            lower=args_inner[index+1]
+        if flag:
+            file_out.write("var float: "+new_var+";\n")
+        else:
+            file_out.write("var int: "+new_var+";\n")
+        if name=="maximize":
+            file_out.write("constraint ("+new_var+"=-("+str(args[0])+"));\n")
+        else:
+            file_out.write("constraint ("+new_var+"="+str(args[0])+");\n")
+        if upper is not None:
+            file_out.write("constraint ("+new_var+"<="+upper+");\n")
+        if lower is not None:
+            file_out.write("constraint ("+new_var+">="+lower+");\n")
+    file_out.write("obj_array=[")
+    print(new_var_list)
+    file_out.write(new_var_list[0])
+    for el in new_var_list[1:]:
+        file_out.write(","+el)
+    file_out.write("];\n")
+    file_out.write("%use minisearch\n")
+    file_out.write("solve search minimize_lex(obj_array);\n")
 
 
-def parseQF_linear(commands,out_file):
-    file_out=open(out_file,"w") #opening the output file -> maybe useful to use the with statement
-    #looking for function, NB as function declaration
-    constants_dict={}
+def write_stack_lex(var_dict,asserts_list,commands_list,logic_name,out_file):
+    file_out=open(out_file,"w")
+    file_out.write("include \"minisearch.mzn\";\n")
+    flag=write_list_variables_lex(var_dict,file_out) #flag for the type of the variables
+    write_assertions(asserts_list,file_out)
+    #flag for the type of the variables
+    write_commands_lex(commands_list,flag,file_out)
+    file_out.close()
+
+def write_stack_box(var_dict,asserts_list,commands_list,logic_name,out_file):
+    #for each box new file
+    #in commands_list only maximize and minimize
+    i=0
+    new_var="parse_temp"
+    for (name,args) in commands_list:
+        upper=None
+        lower=None
+        file_out=open(out_file.replace(".mzn","_b"+str(i))+".mzn","w")
+        i+=1
+        flag=write_list_variables(var_dict,file_out)
+        if flag:
+            file_out.write("var float:"+new_var+";\n")
+        else:
+            file_out.write("var int:"+new_var+";\n")
+        write_assertions(asserts_list,file_out)
+        #writing the maximize and the minimize
+        args_inner=args[1]
+        if ":upper" in args_inner:
+            index=args_inner.index(":upper")
+            upper=args_inner[index+1]
+        if ":lower" in args:
+            index=args_inner.index(":lower")
+            lower=args_inner[index+1]
+        file_out.write("constraint ("+new_var+"="+str(args[0])+");\n")
+        if upper is not None:
+            file_out.write("constraint ("+new_var+"<="+upper+");\n")
+        if lower is not None:
+            file_out.write("constraint ("+new_var+">="+lower+");\n")
+        if name=='maximize':
+            file_out.write("solve maximize "+new_var+";\n")
+        else:
+            file_out.write("solve minimize "+new_var+";\n")
+
+#considering the case to unroll the  stack
+def write_stack(stack,logic_name,out_file):
+    #check set-priority options -> looking for the last one
+    flat_stack=[item for l in stack for item in l]
+    var_dict={}
     asserts_list=[]
-    commands_dict={}
-    for el in commands:
+    commands_list=[] #maximize/minimize
+    set_priority_option=""
+    for el in flat_stack:
         if el.name=='declare-fun' and len(el.args)==1: #constant condition
-            constants_dict[el.args[0]]=el.args[0].get_type()
+            var_dict[el.args[0]]=[el.args[0].get_type()]
+        elif el.name=='define-fun':
+            var_dict[el.args[0]]=[el.args[2],el.args[3]] #[type,value]
         elif el.name=='assert':
             asserts_list.append(el.args)
-        else:
-            commands_dict[el.name]=el.args
-    write_list_variables(constants_dict,file_out)
-    write_assertions(asserts_list,file_out)
-    write_commands(commands_dict,file_out)
-    file_out.close()
-    
+        elif el.name=='set-option' and el.args[0]==':opt.priority':  #keep the last one
+            set_priority_option=el.args[1]
+        elif el.name=='maximize' or el.name=='minimize':
+            commands_list.append((el.name,el.args))
+        #TODO:how to manage the setting model?
+    if set_priority_option == 'lex': #lexicographic order 
+        write_stack_lex(var_dict,asserts_list,commands_list,logic_name,out_file)
+    elif set_priority_option == 'box': #boxed different files
+        write_stack_box(var_dict,asserts_list,commands_list,logic_name,out_file)
 
+#TODO: modificare, passare la logica di interesse come parametro
+def parse_stack(commands,logic_name,out_file):
+
+    #creo lo stack, appena becco un checksat faccio il printout considerando anche set-option box/lex
+    '''
+    constructing the data structures
+    consideration: looking for set-options, they imply different behaviour
+    lex -> use minisearch different cost and constraint constructions
+    box -> different file, one for each model
+
+    Possible idea on how to manage push/pop and multiple opt.priority
+    generate differente output file for each "section" that is present in the input file
+    
+    set model is used/mandatory only after boxed optimization (independent model for each objective)
+    '''
+    #stack approach, is it useful use this approach?
+    #keep indexes for the objective
+    current_stack=[[]] #list of list for the stack, the first one is the default one
+    file_index=1
+    for cmd in commands:
+        if cmd.name=='push':
+            npush=1
+            if cmd.args!=[]:
+                npush=cmd.args[0]
+            for _ in range(npush):
+                current_stack.append([])
+        elif cmd.name=='pop':
+            npop=1
+            if cmd.args!=[]:
+                npop=cmd.args[0]
+            for _ in range(npop):
+                current_stack.pop()
+        elif cmd.name=='check-sat':  #condition to print out
+            write_stack(current_stack,logic_name,out_file.replace(".","_"+str(file_index)+"."))
+            file_index+=1
+        else:
+            current_stack[-1].append(cmd)
+        
+               
 def startParsing(input_file,out_file):
     parser = SmtLib20Parser() # We read the SMT-LIB Script by creating a Parser From here we can get the SMT-LIB script.
     #get_script_fnname execute the script using a file as source.
-    new_input_f = int2float(input_file)
+    new_input_f = preproc(input_file)
     script = parser.get_script_fname(new_input_f)
     commands = script.commands #getting the list of commands (set-option,set-logic,declaration,assert,command)
     commands_name = [cmd.name for cmd in commands]
@@ -117,8 +261,8 @@ def startParsing(input_file,out_file):
         raise NoLogicDefined("No logic is defined")
     else:
         logic_name=str([cmd.args[0] for cmd in commands if cmd.name=='set-logic'][0])
-        if logic_name in ["QF_LIA","QF_LRA","QF_LIRA"] : #linear integer program
-            parseQF_linear(commands,out_file)
+        if logic_name in ["QF_LIA","QF_LRA","QF_LIRA","QF_BV"] : #linear integer program
+            parse_stack(commands,logic_name,out_file)
   
 if __name__ == "__main__":
     if len(sys.argv)!=3:
