@@ -22,7 +22,7 @@
 
 (set-option :produce-models true)
 (set-option :opt.priority box)
-
+(set-logic QF_LIA)
 ;
 ; PROBLEM
 ;

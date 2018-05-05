@@ -11,6 +11,7 @@
 (declare-fun m1 () Bool)
 (declare-fun m2 () Bool)
 (declare-fun m3 () Bool)
+(declare-fun used_machines () Int)
 (assert (<= 1100 (+ q0 q1 q2 q3))) ; set goods quantity
 (assert (and
 ; set goods produced per machine
@@ -36,7 +37,6 @@
 (get-objectives)
 (pop 1)
 ; optimize (C), use :id to print model value
-(minimize (+ production_cost (* (/ 785 10) ))
-:id total_cost)
+(minimize (+ 10 (* (/ 785 10) (+ (* 2 used_machines) 8))) :id total_cost)
 (set-option :opt.priority box)
 (check-sat)

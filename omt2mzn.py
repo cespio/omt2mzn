@@ -14,9 +14,9 @@ Minisearch solo per int e non real
 TODO:
 - verificare opzioni di set-opt option
 - floating point parser
-- aggiunger controllo ottimizzazione, se boxed(+file), se lex as you know
-- nb per bit vector, un bit in piu per il segno
+- non considerare set model
 - assert soft id per variables typechecking
+- parsing di maximize e minimize con id inseriti
 '''
 from pyomt.smtlib.parser import *
 from pyomt.exceptions import *
@@ -35,10 +35,20 @@ def preproc(input_file):
     flagReal=0
     flagBV=0 #TODO: add comment to highlight the presence of the bitvector
     nl=[]
+    set_declaration_id=set()
     for l in lines:
         if "declare-fun" in l and "Real" in l:
             flagReal=1
         #looking for bitvector to convert
+        if "assert-soft" in l:
+            if ":id " in l:
+                new_var = l.split(":id")[-1].strip().replace(")","")
+            else:
+                new_var = "I"
+            if new_var not in set_declaration_id:
+                nl.append("\n;declaration of additional variable for assert-soft\n")
+                nl.append("\n(declare-fun "+new_var+" () Int)\n")
+                set_declaration_id.add(new_var)
         bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)",l)
         if bv_search:
             (a1,a2)=bv_search.groups()
@@ -47,8 +57,8 @@ def preproc(input_file):
         bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)",l)
         if bv_search:
             (a1,a2)=bv_search.groups()
-            bv=str('{0:0'+a1+'b}').format(int(a2))
-            l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)","#b"+bv,l)
+            bv=str('{0:0'+(a1-1)+'b}').format(int(a2))
+            l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)","#b1"+bv,l)
         
         nl.append(l)
     lines=nl    
@@ -106,6 +116,7 @@ def write_list_variables(variables,file_out):
 
 def write_assertions(asserts_list,file_out):
     for el in asserts_list:
+        el=re.sub(r"\(! (.*)\)",r"not(\1)",str(el))
         assert_str = str(el).strip("[|]").replace("|","\/").replace("&","/\\")
         file_out.write("constraint "+assert_str+";\n")
 
@@ -114,13 +125,17 @@ def write_assertions_soft(asserts_soft_list,file_out,flag):
     set_cost_variables = set([l[-1] for l in asserts_soft_list]) #one variable for each of them
     var_index = {name:0 for name in set_cost_variables}
     var_weight = {}
+    '''
+    Due to parsing problem, add initilly a variable for each id of assert soft
     for v in set_cost_variables:
         if flag:
             file_out.write("var float:"+v+";\n")
         else:
             file_out.write("var int:"+v+";\n")
+    '''
     for el in asserts_soft_list:
         file_out.write("var bool:"+el[-1]+"_"+str(var_index[el[-1]])+";\n")
+        el[0]=re.sub(r"\(! (.*)\)",r"not(\1)",str(el[0]))
         file_out.write("constraint ("+el[-1]+"_"+str(var_index[el[-1]])+"="+str(el[0])+");\n")
         var_weight[el[-1]+"_"+str(var_index[el[-1]])]=el[1]
         var_index[el[-1]]+=1
@@ -131,6 +146,12 @@ def write_assertions_soft(asserts_soft_list,file_out,flag):
             if cost in k:
                 str_ap.append("not("+str(k)+")*"+str(var_weight[k]))
         file_out.write("+".join(str_ap)+");\n")
+        file_out.write("constraint ( 0 <= "+cost+" /\ "+cost+" <= (")
+        str_ap=[]
+        for k in var_weight:
+            if cost in k:
+                str_ap.append(str(var_weight[k]))
+        file_out.write("+".join(str_ap)+"));\n")
 
 def write_commands_lex(commands_list,flag,file_out): #if 1 is real
     new_var_list=[]
@@ -184,7 +205,7 @@ def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,logic_
     #for each box new file
     #in commands_list only maximize and minimize
     i=0
-    new_var="parse_temp"
+    new_var="obje_temp_var"
     for (name,args) in commands_list:
         upper=None
         lower=None
@@ -224,7 +245,7 @@ def write_stack(stack,logic_name,out_file):
     asserts_list=[]
     asserts_soft_list=[]
     commands_list=[] #maximize/minimize
-    set_priority_option=""
+    set_priority_option="box" #default value for the case where no option is specified
     for el in flat_stack:
         if el.name=='declare-fun' and len(el.args)==1: #constant condition
             var_dict[el.args[0]]=[el.args[0].get_type()]

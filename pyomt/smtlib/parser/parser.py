@@ -1127,7 +1127,7 @@ class SmtLibParser(object):
         """(assert-soft <term> [:id <string>] [:weight <const_term>])"""
         expr = self.get_expression(tokens)
         w_v=1   
-        id_v="1"
+        id_v="I"
         r1 = self.parse_atom(tokens,current)
         if r1==":weight":
             w_v = self.get_expression(tokens)
