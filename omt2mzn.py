@@ -14,9 +14,8 @@ Minisearch solo per int e non real
 TODO:
 - verificare opzioni di set-opt option
 - floating point parser
-- non considerare set model
-- assert soft id per variables typechecking
 - parsing di maximize e minimize con id inseriti
+- lexicographic per QF_BV non dovrebbe essere implementabile, a me no che non si usi tonum
 '''
 from pyomt.smtlib.parser import *
 from pyomt.exceptions import *
@@ -37,30 +36,32 @@ def preproc(input_file):
     nl=[]
     set_declaration_id=set()
     for l in lines:
-        if "declare-fun" in l and "Real" in l:
-            flagReal=1
-        #looking for bitvector to convert
-        if "assert-soft" in l:
-            if ":id " in l:
-                new_var = l.split(":id")[-1].strip().replace(")","")
-            else:
-                new_var = "I"
-            if new_var not in set_declaration_id:
-                nl.append("\n;declaration of additional variable for assert-soft\n")
-                nl.append("\n(declare-fun "+new_var+" () Int)\n")
-                set_declaration_id.add(new_var)
-        bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)",l)
-        if bv_search:
-            (a1,a2)=bv_search.groups()
-            bv=str('{0:0'+a1+'b}').format(int(a2))        
-            l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)","#b"+bv,l)
-        bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)",l)
-        if bv_search:
-            (a1,a2)=bv_search.groups()
-            bv=str('{0:0'+(a1-1)+'b}').format(int(a2))
-            l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)","#b1"+bv,l)
-        
-        nl.append(l)
+        if l[0]!=";":
+            l=re.sub(r";.*","",l)
+            if "declare-fun" in l and "Real" in l:
+                flagReal=1
+            #looking for bitvector to convert
+            if "assert-soft" in l:
+                if ":id " in l:
+                    new_var = l.split(":id")[-1].strip().replace(")","")
+                else:
+                    new_var = "I"
+                if new_var not in set_declaration_id:
+                    nl.append("\n;declaration of additional variable for assert-soft\n")
+                    nl.append("\n(declare-fun "+new_var+" () Int)\n")
+                    set_declaration_id.add(new_var)
+            bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)",l)
+            if bv_search:
+                (a1,a2)=bv_search.groups()
+                bv=str('{0:0'+a1+'b}').format(int(a2))        
+                l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)","#b"+bv,l)
+            bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)",l)
+            if bv_search:
+                (a1,a2)=bv_search.groups()
+                bv=str('{0:0'+str(int(a1)-1)+'b}').format(int(a2))
+                l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)","#b1"+bv,l)
+            
+            nl.append(l)
     lines=nl    
     if flagReal==1:
         for l in nl:
@@ -96,6 +97,16 @@ def write_list_variables_lex(variables,file_out):
         file_out.write("array[int] of var int: obj_array;\n")
     return ret
 
+#specialize for BV variables creation
+def write_list_variables_BV(variables,file_out):
+    #TODO: how to declare a parameter?  
+    for var in variables.keys(): #variable definition
+        bv_search=re.search(r"BV{([0-9]+)}",str(variables[var][0]))
+        if bv_search:
+            bv_len,=bv_search.groups()
+            file_out.write("array[1.."+bv_len+"] of var 0..1:"+str(var)+";\n")
+    return bv_len
+
 #return 1 if one of the variables is real
 def write_list_variables(variables,file_out):
     ret=0
@@ -104,9 +115,9 @@ def write_list_variables(variables,file_out):
         if "Real" in str(variables[var][0]) and len(variables[var])!=2:
             file_out.write("var -2147483646.0..2147483646.0 : "+str(var)+";\n") 
             ret=1
-        elif len(variables[var])==2:
+        elif len(variables[var])==2: #parameter declaration
             type,name=variables[var][0],variables[var][1]
-            if "Real" in str(type):
+            if "Real" in str(type): 
                 type="float"
             file_out.write("par "+str(type).lower()+": "+str(var)+" = "+str(name)+";\n")
         elif len(variables[var])==1:
@@ -114,9 +125,28 @@ def write_list_variables(variables,file_out):
             file_out.write("var "+str(type).lower()+":"+str(var)+";\n")
     return ret 
 
+#TODO: parte di asset-soft BV, passing her variables_dict.keys()
+
+def write_assertions_BV(asserts_list,file_out,list_var,bv_len): #the last parameter indicates the list of BV variables to be transformed
+    #reference: https://github.com/hakank/hakank/blob/master/minizinc/bit_vector1.mzn
+    #TODO: occhio al segno
+    bv_len_int=bv_len
+    file_out.write("function var int: toNum(array[1.."+str(bv_len_int)+"] of var int: a) = sum([ceil(pow(2,"+str(bv_len_int)+"-i)) * a[i]| i in 1.."+str(bv_len_int)+"]);\n")
+    for el in asserts_list:
+        el=re.sub(r"\(! (.*)\)",r"not(\1)",str(el))
+        el=re.sub(r"\(!(.*)\)",r"not(\1)",str(el))
+        assert_str = str(el).strip("[|]").replace("|","\/").replace("&","/\\")
+        assert_str = re.sub(r"([0-9]+)_[0-9]+",r"\1",assert_str) #numbers
+        assert_str = re.sub(r"s([<=,=>,<,>])",r"\1",assert_str) #relationship operators
+        for var in list_var:
+            assert_str=re.sub(r"("+str(var)+")",r"toNum(\1)",assert_str)
+        file_out.write("constraint "+assert_str+";\n")
+
+
 def write_assertions(asserts_list,file_out):
     for el in asserts_list:
         el=re.sub(r"\(! (.*)\)",r"not(\1)",str(el))
+        el=re.sub(r"\(!(.*)\)",r"not(\1)",str(el))
         assert_str = str(el).strip("[|]").replace("|","\/").replace("&","/\\")
         file_out.write("constraint "+assert_str+";\n")
 
@@ -201,11 +231,44 @@ def write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,logic_
     write_commands_lex(commands_list,flag,file_out)
     file_out.close()
 
-def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,logic_name,out_file):
+def write_stack_box_BV(var_dict,asserts_list,asserts_soft_list,commands_list,out_file):
+    i=0
+    new_var="obj_temp_var"
+    for (name,args) in commands_list:
+        upper=None
+        lower=None
+        file_out=open(out_file.replace(".mzn","_b"+str(i))+".mzn","w")
+        i+=1
+        bv_len=write_list_variables_BV(var_dict,file_out)
+        file_out.write("array[1.."+str(bv_len)+"] of var 0..1:"+new_var+";\n")
+        write_assertions_BV(asserts_list,file_out,var_dict.keys(),bv_len)
+        #write_assertions_soft(asserts_soft_list,file_out,flag)
+        #writing the maximize and the minimize
+        args_inner=args[1]
+        if ":upper" in args_inner:
+            index=args_inner.index(":upper")
+            upper=args_inner[index+1]
+        if ":lower" in args:
+            index=args_inner.index(":lower")
+            lower=args_inner[index+1]
+        file_out.write("constraint ("+new_var+"="+str(args[0])+");\n")
+        if upper is not None:
+            upper=re.sub(r"([0-9]+)_[0-9]+",r"\1",upper) #numbers
+            file_out.write("constraint ("+new_var+"<="+upper+");\n")
+        if lower is not None:
+            lower=re.sub(r"([0-9]+)_[0-9]+",r"\1",lower) #numbers
+            file_out.write("constraint ("+new_var+">="+lower+");\n")
+        if name=='maximize':
+            file_out.write("solve maximize toNum("+new_var+");\n")
+        else:
+            file_out.write("solve minimize toNum("+new_var+");\n")
+        file_out.close()
+
+def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_file):
     #for each box new file
     #in commands_list only maximize and minimize
     i=0
-    new_var="obje_temp_var"
+    new_var="obj_temp_var"
     for (name,args) in commands_list:
         upper=None
         lower=None
@@ -259,11 +322,13 @@ def write_stack(stack,logic_name,out_file):
             set_priority_option=el.args[1]
         elif el.name=='maximize' or el.name=='minimize':
             commands_list.append((el.name,el.args))
-        #TODO:how to manage the setting model?
     if set_priority_option == 'lex': #lexicographic order 
         write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,logic_name,out_file)
     elif set_priority_option == 'box': #boxed different files
-        write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,logic_name,out_file)
+        if logic_name=="QF_BV":
+            write_stack_box_BV(var_dict,asserts_list,asserts_soft_list,commands_list,out_file)
+        else:
+            write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_file)
 
 #TODO: modificare, passare la logica di interesse come parametro
 def parse_stack(commands,logic_name,out_file):
@@ -319,6 +384,7 @@ def startParsing(input_file,out_file):
         logic_name=str([cmd.args[0] for cmd in commands if cmd.name=='set-logic'][0])
         if logic_name in ["QF_LIA","QF_LRA","QF_LIRA","QF_BV"] : #linear integer program
             parse_stack(commands,logic_name,out_file)
+    
   
 if __name__ == "__main__":
     if len(sys.argv)!=3:

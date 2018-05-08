@@ -28,7 +28,7 @@
 ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 
 (set-option :opt.priority lex)
-
+(set-logic QF_LIA)
 ;
 ; PROBLEM
 ;

@@ -49,7 +49,7 @@
 (set-option :config opt.bin.max_consecutive=2)
 (set-option :config opt.bin.pivot_position=0.5)
 (set-option :config opt.verbose=true)
-
+(set-logic QF_LIA)
 (declare-fun course_load__ARRAY__1 () Real)
 (declare-fun course_load__ARRAY__2 () Real)
 (declare-fun course_load__ARRAY__3 () Real)
