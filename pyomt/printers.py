@@ -42,7 +42,7 @@ class HRPrinter(TreeWalker):
         go. After reaching the thresholded value, "..." will be
         printed instead. This is mainly used for debugging.
         """
-        self.walk(f, threshold=threshold)
+        self.walk(f, threshold=9999999999999999999) #optimathsat
 
     def walk_threshold(self, formula):
         self.write("...")

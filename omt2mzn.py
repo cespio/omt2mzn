@@ -16,6 +16,8 @@ TODO:
 - floating point parser
 - parsing di maximize e minimize con id inseriti
 - lexicographic per QF_BV non dovrebbe essere implementabile, a me no che non si usi tonum
+- #self.walk(f, threshold=9999999999999999999) printers.py l45
+
 '''
 from pyomt.smtlib.parser import *
 from pyomt.exceptions import *
@@ -113,7 +115,8 @@ def write_list_variables(variables,file_out):
     for var in variables.keys():
         #In minizinc if no domain is specified there can be problems with the solver like g12
         if "Real" in str(variables[var][0]) and len(variables[var])!=2:
-            file_out.write("var -2147483646.0..2147483646.0 : "+str(var)+";\n") 
+            #file_out.write("var -2147483646.0..2147483646.0 : "+str(var)+";\n")
+            file_out.write("var float : "+str(var)+";\n")  
             ret=1
         elif len(variables[var])==2: #parameter declaration
             type,name=variables[var][0],variables[var][1]
