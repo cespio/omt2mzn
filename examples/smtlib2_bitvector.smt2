@@ -1,3 +1,4 @@
+
 ; -*- SMT2 -*-
 ;
 ; Author: Patrick Trentin <patrick.trentin@unitn.it>

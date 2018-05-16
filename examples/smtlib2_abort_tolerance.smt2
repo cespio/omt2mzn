@@ -1,5 +1,7 @@
 ; -*- SMT2 -*-
+
 ;
+
 ; Author: Patrick Trentin <patrick.trentin@unitn.it>
 ;
 ; This file is part of OptiMathSAT.

@@ -13,10 +13,11 @@ Declare function as var
 Minisearch solo per int e non real
 TODO:
 - verificare opzioni di set-opt option
-- floating point parser
+- BitVector in boolean
 - parsing di maximize e minimize con id inseriti
 - lexicographic per QF_BV non dovrebbe essere implementabile, a me no che non si usi tonum
 - #self.walk(f, threshold=9999999999999999999) printers.py l45
+- problema con il discorso dei false nei weight
 
 '''
 from pyomt.smtlib.parser import *
@@ -90,6 +91,27 @@ def preproc(input_file):
             temp_file.write(l)
     temp_file.close()
     return input_file+"_temp"          
+
+def add_id_variables(commands_list,var_dict,type_var):
+    id_c=0
+    '''
+    for each max/min command add a variable which name is equal to its id,
+    if this does not exist yet add a unique id, is a counter sufficient?
+    '''
+    for (name,args) in commands_list:
+        args_inner=args[1]
+        if ":id" not in args_inner:
+            var_id_name="opt_var_"+str(id_c)
+            args_inner+=[":id",var_id_name]
+            var_dict[var_id_name]=[type_var] #da cambiare la gestione del tipo
+            id_c+=1
+        else:
+            index=args_inner.index(":id")
+            var_id_name=args_inner[index+1]
+            if var_id_name not in [str(el) for el in var_dict.keys()]:
+                var_dict[var_id_name]=[type_var]
+    return var_dict
+
 
 def write_list_variables_lex(variables,file_out):
     ret=write_list_variables(variables,file_out)
@@ -187,15 +209,15 @@ def write_assertions_soft(asserts_soft_list,file_out,flag):
         file_out.write("+".join(str_ap)+"));\n")
 
 def write_commands_lex(commands_list,flag,file_out): #if 1 is real
-    new_var_list=[]
-    var_name="temp_"
-    print(commands_list)
+    new_var_list=list()
     for (name,args) in commands_list: #only maximize or minimize -> manage the lower and the upper
         upper=None
         lower=None
-        new_var = var_name+str(len(new_var_list)+1)
-        new_var_list.append(new_var)
+        #taking the id value -> equal to the variable
         args_inner=args[1]
+        index=args_inner.index(":id")
+        new_var=args_inner[index+1] 
+        new_var_list.append(new_var)
         if ":upper" in args_inner:
             index=args_inner.index(":upper")
             upper=args_inner[index+1]
@@ -270,22 +292,26 @@ def write_stack_box_BV(var_dict,asserts_list,asserts_soft_list,commands_list,out
 def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_file):
     #for each box new file
     #in commands_list only maximize and minimize
+    print("VAR_DICT",var_dict)
     i=0
-    new_var="obj_temp_var"
     for (name,args) in commands_list:
         upper=None
         lower=None
+        args_inner=args[1]
+        index=args_inner.index(":id")
+        new_var=args_inner[index+1] 
         file_out=open(out_file.replace(".mzn","_b"+str(i))+".mzn","w")
         i+=1
         flag=write_list_variables(var_dict,file_out)
+        '''
         if flag:
             file_out.write("var float:"+new_var+";\n")
         else:
             file_out.write("var int:"+new_var+";\n")
+        '''
         write_assertions(asserts_list,file_out)
         write_assertions_soft(asserts_soft_list,file_out,flag)
         #writing the maximize and the minimize
-        args_inner=args[1]
         if ":upper" in args_inner:
             index=args_inner.index(":upper")
             upper=args_inner[index+1]
@@ -312,11 +338,28 @@ def write_stack(stack,logic_name,out_file):
     asserts_soft_list=[]
     commands_list=[] #maximize/minimize
     set_priority_option="box" #default value for the case where no option is specified
+    '''
+    type_var, detect int or real -> the purpose is to determine the value of the id_opt_Variable, 
+    one for each optimization command
+    to review in case of BV
+    the problem is that this information is retrived also somewhere else, so 
+    it has to be decided which point is better to determine the type of the variable
+    In any case, dobut about MixedInteger Optimization -> if everythin becames Real
+    and one variable was Integer -> can the the result be different? Rounding
+    '''
+    type_var="Real" 
     for el in flat_stack:
         if el.name=='declare-fun' and len(el.args)==1: #constant condition
+            found_type=el.args[0].get_type()
             var_dict[el.args[0]]=[el.args[0].get_type()]
+            print(found_type,type_var)
+            if str(found_type)!=type_var and str(type)!="Bool" :
+                type_var="Int"
         elif el.name=='define-fun':
+            found_type=el.args[2]
             var_dict[el.args[0]]=[el.args[2],el.args[3]] #[type,value]
+            if str(found_type)!=type_var and str(type)!="Bool":
+                type_var="Int"
         elif el.name=='assert':
             asserts_list.append(el.args)
         elif el.name=='assert-soft':
@@ -325,6 +368,8 @@ def write_stack(stack,logic_name,out_file):
             set_priority_option=el.args[1]
         elif el.name=='maximize' or el.name=='minimize':
             commands_list.append((el.name,el.args))
+    var_dict=add_id_variables(commands_list,var_dict,type_var)
+    print var_dict
     if set_priority_option == 'lex': #lexicographic order 
         write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,logic_name,out_file)
     elif set_priority_option == 'box': #boxed different files
