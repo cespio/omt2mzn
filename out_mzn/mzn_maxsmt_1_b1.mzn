@@ -1,0 +1,17 @@
+include "globals.mzn";
+var -2147483646.0..2147483646.0 : y;
+var -2147483646.0..2147483646.0 : x;
+var -2147483646.0..2147483646.0 : goal;
+var -2147483646.0..2147483646.0 : opt_var_0;
+constraint (x = (-1.0 * y));
+var bool:goal_0;
+constraint (goal_0=(x < 0.0));
+var bool:goal_1;
+constraint (goal_1=(x < y));
+var bool:goal_2;
+constraint (goal_2=(y < 0.0));
+constraint (goal=not(goal_2)*1.0+not(goal_0)*1.0+not(goal_1)*1.0);
+constraint ( 0 <= goal /\ goal <= (1.0+1.0+1.0));
+constraint (opt_var_0=goal);
+constraint (opt_var_0<=2.0);
+solve minimize opt_var_0;

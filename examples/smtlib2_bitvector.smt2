@@ -64,7 +64,7 @@
 ;
 ; GOALS
 ;
-(minimize x)
+(minimize x :signed)
 (minimize x :lower ((_ to_bv 8) (- 100)) :signed)
 
 ;

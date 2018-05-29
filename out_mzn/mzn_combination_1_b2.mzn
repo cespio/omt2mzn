@@ -25,4 +25,4 @@ constraint (used_machines=not(used_machines_2)*1+not(used_machines_3)*1+not(used
 constraint ( 0 <= used_machines /\ used_machines <= (1+1+1+1));
 constraint (production_cost=((q0 * 8.0) + (q1 * 9.0) + (q2 * 9.0) + (q3 * 5.0)));
 constraint (total_cost=(production_cost + (157/2 * ((2.0 * used_machines) + 8.0))));
-solve minimize production_cost;
+solve minimize total_cost;

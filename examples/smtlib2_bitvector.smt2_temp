@@ -1,92 +1,48 @@
-; -*- SMT2 -*-
-;
-; Author: Patrick Trentin <patrick.trentin@unitn.it>
-;
-; This file is part of OptiMathSAT.
-;
-; BITVECTOR OPTIMIZATION:
-;     Both OptiMathSAT and Z3 support Bit-Vector optimization.
-;     OptiMathSAT allows the user to specify whether a BV
-;     objective is intended as signed or not by means of
-;     an additional (optional) parameter ':signed', e.g.
-;
-;         (minimize <bv_term> :signed)
-;         (maximize <bv_term>)
-;
-;     When ':signed' is not specified, OptiMathSAT interprets
-;     the BV goal as an unsigned term.
-;
 
-; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 
-(set-option :opt.priority box)
-(set-logic QF_BV)
-;
-; PROBLEM
-;
-(declare-fun x () (_ BitVec 8))
-(assert (or
-    (and (bvsle #b01111000 x)
-         (bvsle x #b01111000)
-    )
-    (and (bvsle #b01100001 x)
-         (bvsle x #b01100001)
-    )
-    (and (bvsle #b00110110 x)
-         (bvsle x #b00110110)
-    )
-    (and (bvsle #b00100000 x)
-         (bvsle x #b00100000)
-    )
-    (and (bvsle #b00010110 x)
-         (bvsle x #b00010110)
-    )
-    (and (bvsle #b00001011 x)
-         (bvsle x #b00001011)
-    )
-    (and (bvsle #b00001000 x)
-         (bvsle x #b00001000)
-    )
-    (and (bvsle #b10000111 x)
-         (bvsle x #b10000111)
-    )
-    (and (bvsle #b10010000 x)
-         (bvsle x #b10010000)
-    )
-    (and (bvsle #b11101001 x)
-         (bvsle x #b11101001)
-    )
-))
 
-;
-; GOALS
-;
-(minimize x)
-(minimize x :lower #b11100100 :signed)
+( set-option :opt.priority box )
+( set-logic QF_BV )
+( declare-fun x (  ) ( _ BitVec 8 ) )
+( assert ( or
+    ( and ( bvsle ( _ bv120 8 ) x )
+         ( bvsle x ( _ bv120 8 ) )
+     )
+    ( and ( bvsle ( _ bv97 8 ) x )
+         ( bvsle x ( _ bv97 8 ) )
+     )
+    ( and ( bvsle ( _ bv54 8 ) x )
+         ( bvsle x ( _ bv54 8 ) )
+     )
+    ( and ( bvsle ( _ bv32 8 ) x )
+         ( bvsle x ( _ bv32 8 ) )
+     )
+    ( and ( bvsle ( _ bv22 8 ) x )
+         ( bvsle x ( _ bv22 8 ) )
+     )
+    ( and ( bvsle ( _ bv11 8 ) x )
+         ( bvsle x ( _ bv11 8 ) )
+     )
+    ( and ( bvsle ( _ bv8 8 ) x )
+         ( bvsle x ( _ bv8 8 ) )
+     )
+    ( and ( bvsle ( _ bv-7 8 ) x )
+         ( bvsle x ( _ bv-7 8 ) )
+     )
+    ( and ( bvsle ( _ bv-16 8 ) x )
+         ( bvsle x ( _ bv-16 8 ) )
+     )
+    ( and ( bvsle ( _ bv-105 8 ) x )
+         ( bvsle x ( _ bv-105 8 ) )
+     )
+ ) )
 
-;
-; OPTIMIZATION + OPTIMUM VALUES
-;
-(check-sat)
-(get-objectives)
+( minimize x :signed )
+( minimize x :lower ( _ bv-100 8 ) :signed )
 
-(exit)
+( check-sat )
+( get-objectives )
 
-; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
+( exit )
 
-;
-; BITVECTOR OPTIMIZATION OPTIONS
-;
-; -theory.bv.eager=BOOL
-;          If true, BV atoms will be bit-blasted into the main DPLL solver.
-; -opt.theory.bv.branch_preference=BOOL
-;          If true, it sets a branching preference on the BV objective. 
-;          (default: true) 
-; -opt.theory.bv.polarity=BOOL
-;          If true, sets the initial polarity of any BV objective towards the 
-;          maximum gain direction. (default: true) 
-;
+

@@ -1,33 +1,33 @@
 
 
-(set-option :opt.priority lex)
-(set-logic QF_LIA)
-(declare-fun x () Int)
-(declare-fun y () Int)
-(declare-fun a () Bool)
-(declare-fun b () Bool)
-(declare-fun c () Bool)
-(declare-fun d () Bool)
-(declare-fun e () Bool)
+( set-option :opt.priority lex )
+( set-logic QF_LIA )
+( declare-fun x (  ) Real )
+( declare-fun y (  ) Real )
+( declare-fun a (  ) Bool )
+( declare-fun b (  ) Bool )
+( declare-fun c (  ) Bool )
+( declare-fun d (  ) Bool )
+( declare-fun e (  ) Bool )
 
-(assert (= (> (+ x y) 0) a))
-(assert (= (< (+ (* 2 x) (* 3 y)) (- 10)) c))
-(assert (and (or a b) (or c d)))
+( assert ( = ( > ( + x y ) 0.0 ) a ) )
+( assert ( = ( < ( + ( * 2.0 x ) ( * 3.0 y ) ) ( - 10.0 ) ) c ) )
+( assert ( and ( or a b ) ( or c d ) ) )
 
-(assert (=> e (< 10 x)))
-(assert (=> (< 10 x) e))
+( assert ( => e ( < 10.0 x ) ) )
+( assert ( => ( < 10.0 x ) e ) )
 
-(assert (<= x 100))
-(assert (<= y 100))
+( assert ( <= x 100.0 ) )
+( assert ( <= y 100.0 ) )
 
 
-(maximize x)
-(maximize y)
+( maximize x )
+( maximize y )
 
-(check-allsat (a b e))
-(get-objectives)
-(get-value (x))
+( check-allsat ( a b e ) )
+( get-objectives )
+( get-value ( x ) )
 
-(check-sat)
+( check-sat )
 
-(exit)
+( exit )

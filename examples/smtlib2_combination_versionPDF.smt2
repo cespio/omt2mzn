@@ -1,17 +1,15 @@
 (set-option :produce-models true) ; enable print model
-(set-logic QF_LIA)
-(declare-fun production_cost () Int) ; change to real
-(declare-fun q0 () Int)
+(declare-fun production_cost () Real)
+(declare-fun q0 () Real)
 ; machine ’i’ production load
-(declare-fun q1 () Int)
-(declare-fun q2 () Int)
-(declare-fun q3 () Int)
+(declare-fun q1 () Real)
+(declare-fun q2 () Real)
+(declare-fun q3 () Real)
 (declare-fun m0 () Bool)
 ; machine ’i’ is used
 (declare-fun m1 () Bool)
 (declare-fun m2 () Bool)
 (declare-fun m3 () Bool)
-(declare-fun used_machines () Int)
 (assert (<= 1100 (+ q0 q1 q2 q3))) ; set goods quantity
 (assert (and
 ; set goods produced per machine
@@ -28,7 +26,6 @@
 (assert-soft (not m1) :id used_machines)
 (assert-soft (not m2) :id used_machines)
 (assert-soft (not m3) :id used_machines)
-
 (push 1)
 ; optimize (A) and (B) lexicographically
 (minimize production_cost)
@@ -36,8 +33,20 @@
 (set-option :opt.priority lex)
 (check-sat)
 (get-objectives)
+; print model for (A)
+(set-model 0)
+(get-value (production_cost)) (get-value (used_machines))
+(get-value (q0)) (get-value (q1)) (get-value (q2)) (get-value (q3))
+; print model for (B) after (A)
+(set-model 1)
+(get-value (production_cost)) (get-value (used_machines))
+(get-value (q0)) (get-value (q1)) (get-value (q2)) (get-value (q3))
 (pop 1)
 ; optimize (C), use :id to print model value
-(minimize (+ 10 (* (/ 785 10) (+ (* 2 used_machines) 8))) :id total_cost)
+(minimize (+ production_cost (* (/ 785 10) (+ (* 2 used_machines) 8)))
+:id total_cost)
 (set-option :opt.priority box)
 (check-sat)
+; print value of (C)
+(set-model 0)
+(get-value (total_cost))

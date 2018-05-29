@@ -588,9 +588,10 @@ class SmtLibParser(object):
                 v = int(op[2:])
                 width = int(self.parse_atom(tokens, "expression"))
             except ValueError:
+
                 raise PysmtSyntaxError("Expected number in '_ bv' expression: "
                                        "'%s'" % op, tokens.pos_info)
-            fun = mgr.BV(v, width)
+            fun = mgr.SBV(v, width) #optimathsat
 
         else:
             raise PysmtSyntaxError("Unexpected '_' expression '%s'" % op,
@@ -823,14 +824,14 @@ class SmtLibParser(object):
                 except IndexError:
                     raise PysmtSyntaxError("Unexpected ')'",
                                            tokens.pos_info)
-
+                
                 try:
                     res = fun(*lst)
                 except TypeError as err:
                     if not callable(fun):
                         raise NotImplementedError("Unknown function '%s'" % fun)
                     raise err
-
+                
                 if len(stack) > 0:
                     stack[-1].append(res)
                 else:
@@ -1230,34 +1231,57 @@ class SmtLibParser(object):
     def _cmd_maximize(self,current,tokens): #---optimathsat
         """(maximize <term> [:id <string>] [:signed]
 [:lower <const_term>] [:upper <const_term>])"""
+
+        obj=None
+        '''
         try:
-            params = self.get_expression(tokens)
+            obj = self.parse_atom(tokens,current)
         except PysmtSyntaxError:
-            params = self.parse_atom(tokens,current)
-        try:
-            params1 = self.parse_atoms(tokens,current,min_size=1,max_size=99)
-            tokens.add_extra_token(")")
-        except PysmtSyntaxError:
-            params1 = []
-            tokens.add_extra_token(")")
+            obj = self.get_expression(tokens)
+        '''
+        obj = self.get_expression(tokens)
+        params=[]
+        curr=tokens.consume()
+        while curr!=")":
+            tokens.add_extra_token(curr)
+            curr_parse=self.parse_atom(tokens,current)
+            if curr_parse==":lower" or curr_parse==":upper":
+                exp=self.get_expression(tokens)
+                params.append(curr_parse)
+                params.append(exp)
+            else:
+                params.append(curr_parse)
+            curr=tokens.consume()
+        tokens.add_extra_token(")")
         self.consume_closing(tokens,current)
-        return SmtLibCommand(current, [params]+[params1])
+        return SmtLibCommand(current,[obj]+[params])
     
     def _cmd_minimize(self,current,tokens): #---optimathsat
         """(minimize <term> [:id <string>] [:signed]
 [:lower <const_term>] [:upper <const_term>])"""
+        '''
+        obj=None
         try:
-            params = self.get_expression(tokens)
+            obj = self.parse_atom(tokens,current)
         except PysmtSyntaxError:
-            params = self.parse_atom(tokens,current)
-        try:
-            params1 = self.parse_atoms(tokens,current,min_size=1,max_size=99)
-            tokens.add_extra_token(")")
-        except PysmtSyntaxError:
-            params1 = []
-            tokens.add_extra_token(")")
+            obj = self.get_expression(tokens)
+        '''
+        obj = self.get_expression(tokens)
+        params=[]
+        curr=tokens.consume()
+        while curr!=")":
+            tokens.add_extra_token(curr)
+            curr_parse=self.parse_atom(tokens,current)
+            if curr_parse==":lower" or curr_parse==":upper":
+                exp=self.get_expression(tokens)
+                params.append(curr_parse)
+                params.append(exp)
+            else:
+                params.append(curr_parse)
+            curr=tokens.consume()
+        tokens.add_extra_token(")")
         self.consume_closing(tokens,current)
-        return SmtLibCommand(current, [params]+[params1])
+        return SmtLibCommand(current,[obj]+[params])
     
     def _cmd_declare_fun(self, current, tokens):
         """(declare-fun <symbol> (<sort>*) <sort>)"""

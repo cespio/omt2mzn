@@ -64,9 +64,9 @@
 ;
 ; GOAL
 ;
-(minimize (+ (* q1 23) (* q2 21) (* q3 20) (* q4 10)))
-(minimize unused_suppliers :lower 0 :upper 4)
 
+(minimize unused_suppliers :lower 0 :upper 4)
+(minimize (+ (* q1 23) (* q2 21) (* q3 20) (* q4 10)))
 
 ;
 ; OPTIMIZATION + OPTIMUM VALUES

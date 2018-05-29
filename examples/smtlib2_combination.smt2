@@ -64,6 +64,8 @@
           :id total_cost
 ) 
 
+
+
 ;
 ; OPTIMIZATION + MODEL VALUES
 ;
@@ -72,6 +74,10 @@
 
 (set-model 1)
 (get-value (total_cost))
-(get-value (production_cost))
-
+;(get-value (production_cost))
+(get-value (used_machines))
+(get-value (m0))
+(get-value (m1))
+(get-value (m2))
+(get-value (m3))
 (exit)

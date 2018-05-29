@@ -1,0 +1,18 @@
+include "globals.mzn";
+var -2147483646.0..2147483646.0 : opt_var_1;
+var -2147483646.0..2147483646.0 : opt_var_0;
+var -2147483646.0..2147483646.0 : opt_var_3;
+var -2147483646.0..2147483646.0 : opt_var_2;
+var -2147483646.0..2147483646.0 : opt_var_4;
+var -2147483646.0..2147483646.0 : t;
+var -2147483646.0..2147483646.0 : y;
+var -2147483646.0..2147483646.0 : x;
+var -2147483646.0..2147483646.0 : z;
+constraint (opt_var_2=z);
+constraint (opt_var_1<=1/2);
+constraint (opt_var_1>=-1/2);
+constraint (opt_var_2<=1.0);
+constraint (opt_var_2>=0.0);
+constraint (opt_var_3<=0.0);
+constraint (opt_var_3>=0.0);
+solve minimize opt_var_2;

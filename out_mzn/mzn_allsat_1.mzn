@@ -1,23 +1,33 @@
+include "globals.mzn";
 include "minisearch.mzn";
-var int:x;
-var int:y;
+var -2147483646.0..2147483646.0 : x;
+var -2147483646.0..2147483646.0 : y;
 var bool:a;
 var bool:b;
 var bool:c;
 var bool:d;
 var bool:e;
-array[int] of var int: obj_array;
-constraint ((0 < (x + y)) <-> a);
-constraint ((((2 * x) + (3 * y)) < -10) <-> c);
+var -2147483646.0..2147483646.0 : opt_var_1;
+var -2147483646.0..2147483646.0 : opt_var_0;
+array[int] of var float: obj_array;
+constraint ((0.0 < (x + y)) <-> a);
+constraint ((((2.0 * x) + (3.0 * y)) < -10.0) <-> c);
 constraint ((a \/ b) /\ (c \/ d));
-constraint (e -> (10 < x));
-constraint ((10 < x) -> e);
-constraint (x <= 100);
-constraint (y <= 100);
-var int: temp_1;
-constraint (temp_1=-(x));
-var int: temp_2;
-constraint (temp_2=-(y));
-obj_array=[temp_1,temp_2];
+constraint (e -> (10.0 < x));
+constraint ((10.0 < x) -> e);
+constraint (x <= 100.0);
+constraint (y <= 100.0);
+constraint (opt_var_0=-(x));
+constraint (opt_var_1=-(y));
+obj_array=[opt_var_0,opt_var_1];
 %use minisearch
-solve search minimize_lex(obj_array);
+solve search minimize_lex_float(obj_array);
+
+
+function ann : minimize_lex_float(array[int] of var float : objs) =
+    next () /\ commit () /\ print () /\
+    repeat(
+        scope(
+            post(lex_less(objs,[sol(objs[i]) | i in index_set (objs)])) /\
+            if next() then commit () /\ print () else break endif
+    ));

@@ -40,11 +40,16 @@
           :id total_cost
  ) 
 
+
+
 ( check-sat )
 ( get-objectives )
 
 ( set-model 1.0 )
 ( get-value ( total_cost ) )
-( get-value ( production_cost ) )
-
+( get-value ( used_machines ) )
+( get-value ( m0 ) )
+( get-value ( m1 ) )
+( get-value ( m2 ) )
+( get-value ( m3 ) )
 ( exit )

@@ -44,7 +44,7 @@
 ;
 ; PROBLEM
 ;
-(declare-fun x () Int)
+(declare-fun x () Real)
 (declare-fun y () Int)
 (declare-fun a () Bool)
 (declare-fun b () Bool)
