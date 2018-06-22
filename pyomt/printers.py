@@ -21,7 +21,7 @@ import pyomt.operators as op
 from pyomt.walkers import TreeWalker
 from pyomt.walkers.generic import handles
 from pyomt.utils import quote
-from pyomt.constants import is_pysmt_fraction, is_pysmt_integer
+from pyomt.constants import is_pyomt_fraction, is_pyomt_integer
 
 
 class HRPrinter(TreeWalker):
@@ -42,7 +42,7 @@ class HRPrinter(TreeWalker):
         go. After reaching the thresholded value, "..." will be
         printed instead. This is mainly used for debugging.
         """
-        self.walk(f, threshold=9999999999999999999) #optimathsat
+        self.walk(f, threshold=None) #optimathsat
 
     def walk_threshold(self, formula):
         self.write("...")
@@ -88,7 +88,7 @@ class HRPrinter(TreeWalker):
         self.write(")")
 
     def walk_real_constant(self, formula):
-        assert is_pysmt_fraction(formula.constant_value()), \
+        assert is_pyomt_fraction(formula.constant_value()), \
             "The type was " + str(type(formula.constant_value()))
         # TODO: Remove this once issue 113 in gmpy2 is solved
         v = formula.constant_value()
@@ -99,7 +99,7 @@ class HRPrinter(TreeWalker):
             self.write("%s/%s" % (n, d))
 
     def walk_int_constant(self, formula):
-        assert is_pysmt_integer(formula.constant_value()), \
+        assert is_pyomt_integer(formula.constant_value()), \
             "The type was " + str(type(formula.constant_value()))
         self.write(str(formula.constant_value()))
 
@@ -153,15 +153,15 @@ class HRPrinter(TreeWalker):
         self.write(" SEXT ")
         self.write("%d)" % formula.bv_extend_step())
 
-    def walk_ite(self, formula):
-        self.write("(")
+    def walk_ite(self, formula): #optimathsat
+        self.write("if ")
         yield formula.arg(0)
-        self.write(" ? ")
+        self.write(" then  ")
         yield formula.arg(1)
-        self.write(" : ")
+        self.write("  else  ")
         yield formula.arg(2)
-        self.write(")")
-
+        self.write(" endif ")
+ 
     def walk_forall(self, formula):
         return self.walk_quantifier("forall ", ", ", " . ", formula)
 

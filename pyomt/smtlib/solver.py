@@ -24,7 +24,7 @@ from pyomt.smtlib.parser import SmtLibParser
 from pyomt.smtlib.script import SmtLibCommand
 from pyomt.solvers.solver import Solver, SolverOptions
 from pyomt.exceptions import (SolverReturnedUnknownResultError,
-                              UnknownSolverAnswerError, PysmtValueError)
+                              UnknownSolverAnswerError, PyomtValueError)
 
 
 class SmtLibOptions(SolverOptions):
@@ -36,7 +36,7 @@ class SmtLibOptions(SolverOptions):
     def __init__(self, **base_options):
         SolverOptions.__init__(self, **base_options)
         if self.unsat_cores_mode is not None:
-            raise PysmtValueError("'unsat_cores_mode' option not supported.")
+            raise PyomtValueError("'unsat_cores_mode' option not supported.")
         self.debug_interaction = False
 
         if 'debug_interaction' in self.solver_options:
@@ -58,7 +58,7 @@ class SmtLibOptions(SolverOptions):
 
         for k,v in self.solver_options.items():
             if k in (':print-success', 'diagnostic-output-channel'):
-                raise PysmtValueError("Cannot override %s." % k)
+                raise PyomtValueError("Cannot override %s." % k)
             solver.set_option(k, str(v))
 
 # EOC SmtLibOptions

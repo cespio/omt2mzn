@@ -19,10 +19,10 @@ from functools import partial
 
 from six.moves import xrange, cStringIO
 
-import pysmt.operators as op
-from pysmt.environment import get_env
-from pysmt.walkers import TreeWalker, DagWalker, handles
-from pysmt.utils import quote
+import pyomt.operators as op
+from pyomt.environment import get_env
+from pyomt.walkers import TreeWalker, DagWalker, handles
+from pyomt.utils import quote
 
 
 class SmtPrinter(TreeWalker):

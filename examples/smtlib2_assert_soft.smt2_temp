@@ -2,7 +2,7 @@
 
 ( set-option :opt.priority box )
 ( set-logic QF_LIA )
-( define-fun w1 (  ) Real 5.0 )
+( define-fun w1 (  ) Int 5 )
 ( declare-fun x (  ) Real )
 
 ( declare-fun x (  ) Real )
@@ -13,13 +13,13 @@
 ( declare-fun goal (  ) Real )
 ( assert-soft false                       :id goal ) 
 ( assert-soft false :id goal )
-( assert-soft false :weight 5.0             :id goal )
+( assert-soft false :weight 5             :id goal )
 ( assert-soft false :weight 0.5           :id goal )
-( assert-soft false :weight ( + 3.0 ( / 4.0 2.0 ) ) :id goal ) 
+( assert-soft false :weight ( + 3 ( / 4 2 ) ) :id goal ) 
 ( assert-soft false :weight w1            :id goal ) 
-( assert-soft false :weight ( / 2.0 4.0 )       :id goal ) 
-( assert-soft false :weight ( - 16.0 )        :id goal ) 
-( assert-soft false :weight ( - ( / 2.0 4.0 ) )   :id goal ) 
+( assert-soft false :weight ( / 2 4 )       :id goal ) 
+( assert-soft false :weight ( - 16 )        :id goal ) 
+( assert-soft false :weight ( - ( / 2 4 ) )   :id goal ) 
 ( assert-soft false :weight ( - 0.5 )       :id goal ) 
 
 

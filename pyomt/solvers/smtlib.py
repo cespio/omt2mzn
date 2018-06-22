@@ -39,7 +39,7 @@ class SmtLibSolver(object):
         Restrictions: Only after set-logic.
 
         :param symbol: Symbol to be declared
-        :type name:  Pysmt symbol
+        :type name:  Pyomt symbol
         :returns: None - might raise exceptions
         """
         raise NotImplementedError
@@ -50,7 +50,7 @@ class SmtLibSolver(object):
         Restrictions: Only after set-logic.
 
         :param symbol: Symbol to be declared
-        :type name:  Pysmt symbol
+        :type name:  Pyomt symbol
         :returns: None
         """
         raise NotImplementedError

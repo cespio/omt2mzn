@@ -95,7 +95,7 @@ def catch_conversion_error(f):
 def assert_infix_enabled(f):
     """Raise an exception if infix notation is not enabled."""
     from functools import wraps
-    from pyomt.exceptions import PysmtModeError
+    from pyomt.exceptions import PyomtModeError
     INFIX_ERROR_MSG = """Infix notation is not enabled for the current environment.
 Enable it by setting enable_infix_notation to True."""
 
@@ -103,6 +103,6 @@ Enable it by setting enable_infix_notation to True."""
     def assert_infix_enabled_wrap(*args, **kwargs):
         from pyomt.environment import get_env
         if not get_env().enable_infix_notation:
-            raise PysmtModeError(INFIX_ERROR_MSG)
+            raise PyomtModeError(INFIX_ERROR_MSG)
         return f(*args, **kwargs)
     return assert_infix_enabled_wrap

@@ -26,12 +26,12 @@ from six.moves import xrange
 from six import iteritems
 
 import pyomt.logics
-from pysmt import typing as types
+from pyomt import typing as types
 from pyomt.solvers.solver import Solver, SolverOptions
 from pyomt.solvers.eager import EagerModel
 from pyomt.rewritings import CNFizer
 from pyomt.decorators import clear_pending_pop, catch_conversion_error
-from pyomt.exceptions import ConvertExpressionError, PysmtValueError
+from pyomt.exceptions import ConvertExpressionError, PyomtValueError
 from pyomt.constants import is_python_integer
 
 
@@ -71,7 +71,7 @@ class PicosatOptions(SolverOptions):
     def __init__(self, **base_options):
         SolverOptions.__init__(self, **base_options)
         if self.unsat_cores_mode is not None:
-            raise PysmtValueError("'unsat_cores_mode' option not supported.")
+            raise PyomtValueError("'unsat_cores_mode' option not supported.")
 
         # Set Defaults
         self.preprocessing = True
@@ -86,28 +86,28 @@ class PicosatOptions(SolverOptions):
         for k,v in self.solver_options.items():
             if k == "enable_trace_generation":
                 if v not in (True, False):
-                    raise PysmtValueError("Invalid value for %s: %s" % \
+                    raise PyomtValueError("Invalid value for %s: %s" % \
                                      (str(k),str(v)))
             elif k == "output":
                 if v is not None and not hasattr(v, "fileno"):
-                    raise PysmtValueError("Invalid value for %s: %s" % \
+                    raise PyomtValueError("Invalid value for %s: %s" % \
                                      (str(k),str(v)))
 
             elif k == "global_default_phase":
                 if v is not None and v not in PicosatOptions.ALL_GLOBAL_DEFAULT_PHASE:
-                    raise PysmtValueError("Invalid value for %s: %s" % \
+                    raise PyomtValueError("Invalid value for %s: %s" % \
                                      (str(k),str(v)))
             elif k == "preprocessing":
                 if v not in (True, False):
-                    raise PysmtValueError("Invalid value for %s: %s" % \
+                    raise PyomtValueError("Invalid value for %s: %s" % \
                                      (str(k),str(v)))
             elif k == "verbosity":
                 if not is_python_integer(v):
-                    raise PysmtValueError("Invalid value for %s: %s" % \
+                    raise PyomtValueError("Invalid value for %s: %s" % \
                                      (str(k),str(v)))
             elif k == "propagation_limit":
                 if not is_python_integer(v):
-                    raise PysmtValueError("Invalid value for %s: %s" % \
+                    raise PyomtValueError("Invalid value for %s: %s" % \
                                      (str(k),str(v)))
             elif k in ("more_important_lit", "less_important_lit"):
                 if v is not None:
@@ -116,11 +116,11 @@ class PicosatOptions(SolverOptions):
                     except:
                         valid = False
                     if not valid:
-                        raise PysmtValueError("'more_important_lit' and "
+                        raise PyomtValueError("'more_important_lit' and "
                                               "'less_important_lit' require a "
                                               "list of Boolean variables")
             else:
-                raise PysmtValueError("Unrecognized option '%s'." % k)
+                raise PyomtValueError("Unrecognized option '%s'." % k)
             # Store option
             setattr(self, k, v)
 
@@ -162,7 +162,7 @@ class PicosatOptions(SolverOptions):
 
         if self.enable_trace_generation:
             rv = picosat.picosat_enable_trace_generation(pico)
-            if rv == 0: raise PysmtValueError("Picosat: Cannot enable Trace"
+            if rv == 0: raise PyomtValueError("Picosat: Cannot enable Trace"
                                               " Generation")
 
         if self.verbosity > 0:

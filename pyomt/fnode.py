@@ -56,7 +56,7 @@ from pyomt.decorators import deprecated, assert_infix_enabled
 from pyomt.utils import twos_complement
 from pyomt.constants import (Fraction, is_python_integer,
                              is_python_rational, is_python_boolean)
-from pyomt.exceptions import (PysmtValueError, PysmtModeError,
+from pyomt.exceptions import (PyomtValueError, PyomtModeError,
                               UnsupportedOperatorError)
 
 
@@ -156,7 +156,7 @@ class FNode(object):
                     if not c.is_constant():
                         return False
                 if _type is not None or value is not None:
-                    raise PysmtValueError("constant type and value checking " \
+                    raise PyomtValueError("constant type and value checking " \
                                           "is not available for array values")
                 return True
             return False
@@ -698,7 +698,7 @@ class FNode(object):
         elif expected_type.is_real_type():
             return mgr.Real(arg)
         else:
-            raise PysmtValueError("Unsupported value '%s' in infix operator" % str(arg))
+            raise PyomtValueError("Unsupported value '%s' in infix operator" % str(arg))
 
     def Implies(self, right):
         return self._apply_infix(right, _mgr().Implies)
@@ -717,7 +717,7 @@ class FNode(object):
         if isinstance(then_, FNode) and isinstance(else_, FNode):
             return _mgr().Ite(self, then_, else_)
         else:
-            raise PysmtModeError("Cannot infix ITE with implicit argument types.")
+            raise PyomtModeError("Cannot infix ITE with implicit argument types.")
 
     def And(self, right):
         return self._apply_infix(right, _mgr().And)
@@ -889,12 +889,12 @@ class FNode(object):
         if self.is_symbol() and self.symbol_type().is_function_type():
             types = self.symbol_type().param_types
             if (len(types) != len(args)):
-                raise PysmtValueError("Wrong number of parameters passed in "
+                raise PyomtValueError("Wrong number of parameters passed in "
                                       "infix 'call' operator")
             args = [self._infix_prepare_arg(x, t) for x,t in zip(args, types)]
             return _mgr().Function(self, args)
         else:
-            raise PysmtValueError("Call operator can be applied to symbol "
+            raise PyomtValueError("Call operator can be applied to symbol "
                                   "types having function type only")
 
 # EOC FNode

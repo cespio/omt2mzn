@@ -21,13 +21,13 @@ import sys
 import argparse
 from warnings import warn
 
-from pysmt import git_version
-from pysmt.shortcuts import *
-from pysmt.typing import INT, REAL, BOOL, BVType, BV32
+from pyomt import git_version
+from pyomt.shortcuts import *
+from pyomt.typing import INT, REAL, BOOL, BVType, BV32
 
-from pysmt.smtlib.parser import SmtLibParser
-from pysmt.smtlib.script import evaluate_command
-from pysmt.smtlib.commands import CHECK_SAT, GET_VALUE
+from pyomt.smtlib.parser import SmtLibParser
+from pyomt.smtlib.script import evaluate_command
+from pyomt.smtlib.commands import CHECK_SAT, GET_VALUE
 
 welcome_msg = \
 """Welcome to pySMT!!!
@@ -55,7 +55,7 @@ Happy Solving!
 
 
 
-class PysmtShell(object):
+class PyomtShell(object):
 
     def __init__(self, argv):
         self.env = get_env()
@@ -137,11 +137,11 @@ class PysmtShell(object):
             self.smtlib_solver(input_stream)
 
 def main_interactive():
-    shell = PysmtShell(sys.argv[1:])
+    shell = PyomtShell(sys.argv[1:])
     shell.interactive()
 
 def main():
-    shell = PysmtShell(sys.argv[1:])
+    shell = PyomtShell(sys.argv[1:])
     shell.main()
 
 

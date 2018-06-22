@@ -244,7 +244,7 @@ class Logic(object):
         target_logic = Logic(name="", description="",
                              quantifier_free=False,
                              theory=self.theory)
-        return get_closer_pysmt_logic(target_logic)
+        return get_closer_pyomt_logic(target_logic)
 
     def is_quantified(self):
         """Return whether the logic supports quantifiers."""
@@ -796,7 +796,7 @@ def get_closer_logic(supported_logics, logic):
     return min(res)
 
 
-def get_closer_pysmt_logic(target_logic):
+def get_closer_pyomt_logic(target_logic):
     """Returns the closer logic supported by PYSMT."""
     return get_closer_logic(PYSMT_LOGICS, target_logic)
 

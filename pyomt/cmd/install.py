@@ -21,13 +21,13 @@ import platform
 
 from collections import namedtuple
 
-from pysmt.cmd.installers import MSatInstaller, Z3Installer, PicoSATInstaller
-from pysmt.cmd.installers import CVC4Installer, YicesInstaller, BtorInstaller
-from pysmt.cmd.installers import CuddInstaller
+from pyomt.cmd.installers import MSatInstaller, Z3Installer, PicoSATInstaller
+from pyomt.cmd.installers import CVC4Installer, YicesInstaller, BtorInstaller
+from pyomt.cmd.installers import CuddInstaller
 
-from pysmt.environment import get_env
-from pysmt.exceptions import PysmtException
-from pysmt import git_version
+from pyomt.environment import get_env
+from pyomt.exceptions import pyomtException
+from pyomt import git_version
 
 # Build a list of installers, one for each solver
 Installer = namedtuple("Installer", ["InstallerClass", "version", "extra_params"])
@@ -75,7 +75,7 @@ def check_installed(required_solvers, install_dir, bindings_dir, mirror_link):
 
     for solver in required_solvers:
         if solver not in pypath_solvers:
-            raise PysmtException("Was expecting to find %s installed" % solver)
+            raise PyomtException("Was expecting to find %s installed" % solver)
 
     #
     # Output information

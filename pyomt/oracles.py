@@ -30,9 +30,9 @@ import pyomt
 import pyomt.walkers as walkers
 import pyomt.operators as op
 
-from pysmt import typing
+from pyomt import typing
 
-from pyomt.logics import Logic, Theory, get_closer_pysmt_logic
+from pyomt.logics import Logic, Theory, get_closer_pyomt_logic
 
 
 class SizeOracle(walkers.DagWalker):
@@ -519,4 +519,4 @@ def get_logic(formula, env=None):
     logic = Logic(name="Detected Logic", description="",
                   quantifier_free=qf, theory=theory)
     # Return a logic supported by PySMT that is close to the one computed
-    return get_closer_pysmt_logic(logic)
+    return get_closer_pyomt_logic(logic)

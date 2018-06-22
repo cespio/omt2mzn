@@ -19,8 +19,8 @@ from six.moves import xrange
 
 from pyomt.typing import BOOL
 from pyomt.solvers.options import SolverOptions
-from pyomt.exceptions import (SolverReturnedUnknownResultError, PysmtValueError,
-                              PysmtTypeError, SolverStatusError)
+from pyomt.exceptions import (SolverReturnedUnknownResultError, PyomtValueError,
+                              PyomtTypeError, SolverStatusError)
 
 
 class Solver(object):
@@ -34,7 +34,7 @@ class Solver(object):
 
     def __init__(self, environment, logic, **options):
         if logic is None:
-            raise PysmtValueError("Cannot provide 'None' as logic")
+            raise PyomtValueError("Cannot provide 'None' as logic")
 
         self.environment = environment
         self.pending_pop = False
@@ -274,7 +274,7 @@ class Solver(object):
         Raises TypeError.
         """
         if item.is_symbol() and item.symbol_type().is_function_type():
-            raise PysmtTypeError("Cannot call get_value() on a FunctionType")
+            raise PyomtTypeError("Cannot call get_value() on a FunctionType")
 
     def _assert_is_boolean(self, formula):
         """Enforces that argument 'formula' is of type Boolean.
@@ -282,7 +282,7 @@ class Solver(object):
         Raises TypeError.
         """
         if formula.get_type() != BOOL:
-            raise PysmtTypeError("Argument must be boolean.")
+            raise PyomtTypeError("Argument must be boolean.")
 
 
 class IncrementalTrackingSolver(Solver):

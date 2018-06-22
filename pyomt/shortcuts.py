@@ -1150,7 +1150,7 @@ def sequence_interpolant(formulas, solver_name=None, logic=None):
 
 
 def read_configuration(config_filename, environment=None):
-    """Reads the pysmt configuration of the given file path and applies
+    """Reads the pyomt configuration of the given file path and applies
     it on the specified environment. If no environment is specified,
     the top-level environment will be used.
 
@@ -1163,7 +1163,7 @@ def read_configuration(config_filename, environment=None):
 
 
 def write_configuration(config_filename, environment=None):
-    """Dumps the current pysmt configuration to the specified file path
+    """Dumps the current pyomt configuration to the specified file path
 
     :param config_filename: Specify the name of the config file
     :param environment: Specify the environment

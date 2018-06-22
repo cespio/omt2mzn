@@ -27,18 +27,18 @@ except ImportError:
     raise SolverAPINotFound
 
 import pyomt.typing as types
-from pyomt.logics import PYSMT_LOGICS, ARRAYS_CONST_LOGICS
+from pyomt.logics import pyomt_LOGICS, ARRAYS_CONST_LOGICS
 
 from pyomt.solvers.solver import Solver, Converter, SolverOptions
 from pyomt.exceptions import (SolverReturnedUnknownResultError,
                               InternalSolverError,
-                              NonLinearError, PysmtValueError,
-                              PysmtTypeError)
+                              NonLinearError, PyomtValueError,
+                              PyomtTypeError)
 from pyomt.walkers import DagWalker
 from pyomt.solvers.smtlib import SmtLibBasicSolver, SmtLibIgnoreMixin
 from pyomt.solvers.eager import EagerModel
 from pyomt.decorators import catch_conversion_error
-from pyomt.constants import Fraction, is_pysmt_integer, to_python_integer
+from pyomt.constants import Fraction, is_pyomt_integer, to_python_integer
 
 
 class CVC4Options(SolverOptions):
@@ -48,14 +48,14 @@ class CVC4Options(SolverOptions):
         # TODO: CVC4 Supports UnsatCore extraction
         # but we did not wrapped it yet. (See #349)
         if self.unsat_cores_mode is not None:
-            raise PysmtValueError("'unsat_cores_mode' option not supported.")
+            raise PyomtValueError("'unsat_cores_mode' option not supported.")
 
     @staticmethod
     def _set_option(cvc4, name, value):
         try:
             cvc4.setOption(name, CVC4.SExpr(value))
         except:
-            raise PysmtValueError("Error setting the option '%s=%s'" % (name,value))
+            raise PyomtValueError("Error setting the option '%s=%s'" % (name,value))
 
     def __call__(self, solver):
         if solver.logic_name == "QF_SLIA":
@@ -224,7 +224,7 @@ class CVC4Converter(Converter, DagWalker):
 
     def declare_variable(self, var):
         if not var.is_symbol():
-            raise PysmtTypeError("Trying to declare as a variable something "
+            raise PyomtTypeError("Trying to declare as a variable something "
                                  "that is not a symbol: %s" % var)
         if var.symbol_name() not in self.declared_vars:
             cvc4_type = self._type_to_cvc4(var.symbol_type())
@@ -258,10 +258,10 @@ class CVC4Converter(Converter, DagWalker):
                 res = self.mgr.Array(array_type.index_type,
                                      base_value)
             else:
-                raise PysmtTypeError("Unsupported constant type:",
+                raise PyomtTypeError("Unsupported constant type:",
                                      expr.getType().toString())
         else:
-            raise PysmtTypeError("Unsupported expression:", expr.toString())
+            raise PyomtTypeError("Unsupported expression:", expr.toString())
 
         return res
 
@@ -306,7 +306,7 @@ class CVC4Converter(Converter, DagWalker):
         return self.mkConst(CVC4.Rational(rep))
 
     def walk_int_constant(self, formula, **kwargs):
-        assert is_pysmt_integer(formula.constant_value())
+        assert is_pyomt_integer(formula.constant_value())
         rep = str(formula.constant_value())
         return self.mkConst(CVC4.Rational(rep))
 

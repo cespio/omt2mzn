@@ -14,7 +14,7 @@
 import sys
 import os
 
-from pysmt.cmd.installers.base import SolverInstaller, TemporaryPath
+from pyomt.cmd.installers.base import SolverInstaller, TemporaryPath
 
 
 class BtorInstaller(SolverInstaller):

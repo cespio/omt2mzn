@@ -5,7 +5,7 @@
 ( set-logic QF_BV )
 ( declare-fun x (  ) ( _ BitVec 8 ) )
 ( assert ( or
-    ( and ( bvsle ( _ bv120 8 ) x )
+    ( and ( bvule ( _ bv201 8 ) x )
          ( bvsle x ( _ bv120 8 ) )
      )
     ( and ( bvsle ( _ bv97 8 ) x )

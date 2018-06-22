@@ -15,7 +15,7 @@
 import os
 import glob
 
-from pysmt.cmd.installers.base import SolverInstaller
+from pyomt.cmd.installers.base import SolverInstaller
 
 
 class MSatInstaller(SolverInstaller):
@@ -61,7 +61,7 @@ class MSatInstaller(SolverInstaller):
             gmp_h_url = "https://github.com/mikand/tamer-windows-deps/raw/master/gmp/include/gmp.h"
             mpir_dll_url = "https://github.com/Legrandin/mpir-windows-builds/blob/master/mpir-2.6.0_VS2015_%s/mpir.dll?raw=true" % self.bits
             mpir_lib_url = "https://github.com/Legrandin/mpir-windows-builds/blob/master/mpir-2.6.0_VS2015_%s/mpir.lib?raw=true" % self.bits
-            setup_py_win_url = "https://github.com/pysmt/solvers_patches/raw/master/mathsat/setup-win.py"
+            setup_py_win_url = "https://github.com/pyomt/solvers_patches/raw/master/mathsat/setup-win.py"
 
             SolverInstaller.do_download(gmp_h_url, os.path.join(incdir, "gmp.h"))
             SolverInstaller.do_download(mpir_dll_url, os.path.join(libdir, "mpir.dll"))

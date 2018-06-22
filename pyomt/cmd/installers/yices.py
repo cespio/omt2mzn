@@ -15,7 +15,7 @@ import os
 import sys
 import glob
 
-from pysmt.cmd.installers.base import SolverInstaller, TemporaryPath
+from pyomt.cmd.installers.base import SolverInstaller, TemporaryPath
 
 
 class YicesInstaller(SolverInstaller):
@@ -46,7 +46,7 @@ class YicesInstaller(SolverInstaller):
         yicespy_dir_path = os.path.join(self.base_dir,
                                         yicespy_base_name + "-" + yicespy_git_version)
 
-        yicespy_download_link = "https://codeload.github.com/pysmt/yicespy/tar.gz/%s" % (yicespy_git_version)
+        yicespy_download_link = "https://codeload.github.com/pyomt/yicespy/tar.gz/%s" % (yicespy_git_version)
         SolverInstaller.do_download(yicespy_download_link, yicespy_archive)
 
         SolverInstaller.clean_dir(yicespy_dir_path)

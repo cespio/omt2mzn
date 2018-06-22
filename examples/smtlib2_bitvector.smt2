@@ -29,7 +29,7 @@
 ;
 (declare-fun x () (_ BitVec 8))
 (assert (or
-    (and (bvsle ((_ to_bv 8) 120) x)
+    (and (bvule ((_ to_bv 8) 201) x)
          (bvsle x ((_ to_bv 8) 120))
     )
     (and (bvsle ((_ to_bv 8) 97) x)

@@ -16,7 +16,7 @@ import subprocess
 
 from six import PY2
 
-from pysmt.cmd.installers.base import SolverInstaller
+from pyomt.cmd.installers.base import SolverInstaller
 
 
 class CuddInstaller(SolverInstaller):
@@ -26,7 +26,7 @@ class CuddInstaller(SolverInstaller):
     def __init__(self, install_dir, bindings_dir, solver_version,
                  mirror_link=None, git_version='HEAD'):
         archive_name = "repycudd-%s.tar.gz" % git_version
-        native_link = "https://codeload.github.com/pysmt/repycudd/tar.gz/%s" % git_version
+        native_link = "https://codeload.github.com/pyomt/repycudd/tar.gz/%s" % git_version
         SolverInstaller.__init__(self, install_dir=install_dir,
                                  bindings_dir=bindings_dir,
                                  solver_version=solver_version,

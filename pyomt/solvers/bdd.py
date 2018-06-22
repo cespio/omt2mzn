@@ -25,13 +25,13 @@ except ImportError:
     raise SolverAPINotFound
 
 import pyomt.logics
-from pysmt import typing as types
+from pyomt import typing as types
 from pyomt.solvers.solver import Solver, Converter, SolverOptions
 from pyomt.solvers.eager import EagerModel
 from pyomt.walkers import DagWalker
 from pyomt.decorators import clear_pending_pop, catch_conversion_error
-from pyomt.exceptions import (ConvertExpressionError, PysmtValueError,
-                              PysmtTypeError)
+from pyomt.exceptions import (ConvertExpressionError, PyomtValueError,
+                              PyomtTypeError)
 from pyomt.oracles import get_logic
 from pyomt.solvers.qelim import QuantifierEliminator
 
@@ -80,9 +80,9 @@ class BddOptions(SolverOptions):
         SolverOptions.__init__(self, **base_options)
 
         if self.random_seed is not None:
-            raise PysmtValueError("'random_seed' option not supported.")
+            raise PyomtValueError("'random_seed' option not supported.")
         if self.unsat_cores_mode is not None:
-            raise PysmtValueError("'unsat_cores_mode' option not supported.")
+            raise PyomtValueError("'unsat_cores_mode' option not supported.")
 
         for k,v in self.solver_options.items():
             if k == "static_ordering":
@@ -92,18 +92,18 @@ class BddOptions(SolverOptions):
                     except:
                         valid = False
                     if not valid:
-                        raise PysmtValueError("The BDD static ordering must be" \
+                        raise PyomtValueError("The BDD static ordering must be" \
                                               " a list of Boolean variables")
             elif k == "dynamic_reordering":
                 if v not in (True, False):
-                    raise PysmtValueError("Invalid value %s for '%s'" % \
+                    raise PyomtValueError("Invalid value %s for '%s'" % \
                                           (str(k),str(v)))
             elif k == "reordering_algorithm":
                 if v not in BddOptions.CUDD_ALL_REORDERING_ALGORITHMS:
-                    raise PysmtValueError("Invalid value %s for '%s'" % \
+                    raise PyomtValueError("Invalid value %s for '%s'" % \
                                           (str(k),str(v)))
             else:
-                raise PysmtValueError("Unrecognized option '%s'." % k)
+                raise PyomtValueError("Unrecognized option '%s'." % k)
             # Store option
             setattr(self, k, v)
 
@@ -120,7 +120,7 @@ class BddOptions(SolverOptions):
 
         # Consistency check
         if not self.dynamic_reordering and self.reordering_algorithm is not None:
-            raise PysmtValueError("reordering_algorithm requires "
+            raise PyomtValueError("reordering_algorithm requires "
                                   "dynamic_reordering.")
 
     def __call__(self, solver):
@@ -288,7 +288,7 @@ class BddConverter(Converter, DagWalker):
 
     def declare_variable(self, var):
         if not var.is_symbol(type_=types.BOOL):
-            raise PysmtTypeError("Trying to declare as a variable something "
+            raise PyomtTypeError("Trying to declare as a variable something "
                                  "that is not a symbol: %s" % var)
         if var not in self.var2node:
             node = self.ddmanager.NewVar()
@@ -416,8 +416,8 @@ class BddQuantifierEliminator(QuantifierEliminator):
                                       "(detected logic is: %s)" % str(logic))
 
         bdd = self.converter.convert(formula)
-        pysmt_res = self.converter.back(bdd)
-        return pysmt_res
+        pyomt_res = self.converter.back(bdd)
+        return pyomt_res
 
     def _exit(self):
         del self.ddmanager

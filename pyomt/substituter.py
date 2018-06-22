@@ -22,7 +22,7 @@ from six import iteritems
 import pyomt.walkers
 from pyomt.walkers.generic import handles
 import pyomt.operators as op
-from pyomt.exceptions import PysmtTypeError
+from pyomt.exceptions import PyomtTypeError
 
 
 class Substituter(pyomt.walkers.IdentityDagWalker):
@@ -105,25 +105,25 @@ class Substituter(pyomt.walkers.IdentityDagWalker):
 
         # Check that formula is a term
         if not formula.is_term():
-            raise PysmtTypeError("substitute() can only be used on terms.")
+            raise PyomtTypeError("substitute() can only be used on terms.")
 
         for (i, k) in enumerate(subs):
             v = subs[k]
             # Check that substitutions are terms
             if not k.is_term():
-                raise PysmtTypeError(
+                raise PyomtTypeError(
                     "Only terms should be provided as substitutions." +
                     " Non-term '%s' found." % k)
             if not v.is_term():
-                raise PysmtTypeError(
+                raise PyomtTypeError(
                     "Only terms should be provided as substitutions." +
                     " Non-term '%s' found." % v)
             # Check that substitutions belong to the current formula manager
             if k not in self.manager:
-                raise PysmtTypeError(
+                raise PyomtTypeError(
                     "Key %d does not belong to the Formula Manager." % i)
             if v not in self.manager:
-                raise PysmtTypeError(
+                raise PyomtTypeError(
                     "Value %d does not belong to the Formula Manager." % i)
 
         res = self.walk(formula, substitutions=subs)

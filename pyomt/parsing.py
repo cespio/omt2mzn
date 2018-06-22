@@ -20,7 +20,7 @@ from collections import namedtuple
 
 import pyomt.typing as types
 from pyomt.environment import get_env
-from pyomt.exceptions import PysmtSyntaxError, UndefinedSymbolError
+from pyomt.exceptions import pyomtSyntaxError, UndefinedSymbolError
 from pyomt.constants import Fraction
 
 
@@ -60,7 +60,7 @@ class Lexer(object):
         self.scanner = re.compile("|".join(rule.regex for rule in self.rules),
                                   re.DOTALL | re.VERBOSE)
     def lexing_error(self, read):
-        raise PysmtSyntaxError("Unexpected input: %s" % read)
+        raise PyomtSyntaxError("Unexpected input: %s" % read)
 
     def tokenize(self, data):
         """The token generator for the given string"""
@@ -89,10 +89,10 @@ class GrammarSymbol(object):
         self.payload = payload
 
     def nud(self, parser):
-        raise PysmtSyntaxError("Syntax error at token '%s'." % parser.token)
+        raise PyomtSyntaxError("Syntax error at token '%s'." % parser.token)
 
     def led(self, parser, left):
-        raise PysmtSyntaxError("Syntax error at token '%s' (Read: '%s')." % \
+        raise PyomtSyntaxError("Syntax error at token '%s' (Read: '%s')." % \
                           (parser.token, left))
 
 #
@@ -271,7 +271,7 @@ class HRLexer(Lexer):
             if b.is_constant():
                 return op(a, b.constant_value())
             else:
-                raise PysmtSyntaxError("Constant expected, got '%s'" % b)
+                raise PyomtSyntaxError("Constant expected, got '%s'" % b)
         return _res
 
 
@@ -418,7 +418,7 @@ class OpenBrak(GrammarSymbol):
             parser.expect(CloseBrak, "]")
             return parser.mgr.Store(op, e1, e2)
         else:
-            raise PysmtSyntaxError("Unexpected token:" + str(parser.token))
+            raise PyomtSyntaxError("Unexpected token:" + str(parser.token))
 
 
 class Quantifier(GrammarSymbol):
@@ -486,7 +486,7 @@ class PrattParser(object):
         result = self.expression()
         try:
             bd = next(self.tokenizer)
-            raise PysmtSyntaxError("Bogus data after expression: '%s' "
+            raise PyomtSyntaxError("Bogus data after expression: '%s' "
                                    "(Partial: %s)" % (bd, result))
         except StopIteration:
             return result
@@ -502,7 +502,7 @@ class PrattParser(object):
         ParserError
         """
         if type(self.token) != token_class:
-            raise PysmtSyntaxError("Expected '%s'" % token_repr)
+            raise PyomtSyntaxError("Expected '%s'" % token_repr)
         self.advance()
 
 # EOC PrattParser

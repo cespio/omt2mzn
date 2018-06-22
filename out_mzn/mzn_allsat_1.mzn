@@ -21,7 +21,7 @@ constraint (opt_var_0=-(x));
 constraint (opt_var_1=-(y));
 obj_array=[opt_var_0,opt_var_1];
 %use minisearch
-solve search minimize_lex_float(obj_array);
+solve search minimize_lex_float_2(obj_array);
 
 
 function ann : minimize_lex_float(array[int] of var float : objs) =
@@ -31,3 +31,14 @@ function ann : minimize_lex_float(array[int] of var float : objs) =
             post(lex_less(objs,[sol(objs[i]) | i in index_set (objs)])) /\
             if next() then commit () /\ print () else break endif
     ));
+
+function ann : minimize_lex_float_2(array[int] of var float : objs) =
+    next() /\ commit() /\
+    scope(
+    repeat(i in 1..length(objs))(
+        print("value of i "++show(i)++"\n") /\
+        repeat(
+            if next() then commit() /\ print() /\ post(objs[i]<=sol(objs[i])) 
+            else  break  endif
+        ))
+    );

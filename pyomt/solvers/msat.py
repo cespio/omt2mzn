@@ -19,7 +19,7 @@ from warnings import warn
 from six.moves import xrange
 
 from pyomt.exceptions import SolverAPINotFound
-from pyomt.constants import Fraction, is_pysmt_fraction, is_pysmt_integer
+from pyomt.constants import Fraction, is_pyomt_fraction, is_pyomt_integer
 
 try:
     import mathsat
@@ -30,7 +30,7 @@ from pyomt.logics import LRA, LIA, QF_UFLIA, QF_UFLRA, QF_BV, PYSMT_QF_LOGICS
 from pyomt.oracles import get_logic
 
 import pyomt.operators as op
-from pysmt import typing as types
+from pyomt import typing as types
 from pyomt.solvers.solver import (IncrementalTrackingSolver, UnsatCoreSolver,
                                   Model, Converter, SolverOptions)
 from pyomt.solvers.smtlib import SmtLibBasicSolver, SmtLibIgnoreMixin
@@ -39,7 +39,7 @@ from pyomt.exceptions import (SolverReturnedUnknownResultError,
                               SolverNotConfiguredForUnsatCoresError,
                               SolverStatusError,
                               InternalSolverError,
-                              NonLinearError, PysmtValueError, PysmtTypeError,
+                              NonLinearError, PyomtValueError, PyomtTypeError,
                               ConvertExpressionError)
 from pyomt.decorators import clear_pending_pop, catch_conversion_error
 from pyomt.solvers.qelim import QuantifierEliminator
@@ -145,7 +145,7 @@ class MathSATOptions(SolverOptions):
         """Sets the given option. Might raise a ValueError."""
         check = mathsat.msat_set_option(msat_config, name, value)
         if check != 0:
-            raise PysmtValueError("Error setting the option '%s=%s'" % (name,value))
+            raise PyomtValueError("Error setting the option '%s=%s'" % (name,value))
 
     def __call__(self, solver):
         if self.generate_models:
@@ -310,12 +310,12 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
         if self.options.unsat_cores_mode == "named":
 
             assumptions = mathsat.msat_get_unsat_assumptions(self.msat_env())
-            pysmt_assumptions = set(self.converter.back(t) for t in assumptions)
+            pyomt_assumptions = set(self.converter.back(t) for t in assumptions)
 
             res = {}
             n_ass_map = self._named_assertions_map()
             cnt = 0
-            for key in pysmt_assumptions:
+            for key in pyomt_assumptions:
                 if key in n_ass_map:
                     (name, formula) = n_ass_map[key]
                     if name is None:
@@ -615,23 +615,23 @@ class MSatConverter(Converter, DagWalker):
                                      mathsat.msat_term_repr(term))
 
     def _back_single_term(self, term, mgr, args):
-        """Builds the pysmt formula given a term and the list of formulae
+        """Builds the pyomt formula given a term and the list of formulae
         obtained by converting the term children.
 
-        :param term: The MathSAT term to be transformed in pysmt formulae
+        :param term: The MathSAT term to be transformed in pyomt formulae
         :type term: MathSAT term
 
         :param mgr: The formula manager to be sued to build the
         formulae, it should allow for type unsafety.
         :type mgr: Formula manager
 
-        :param args: List of the pysmt formulae obtained by converting
+        :param args: List of the pyomt formulae obtained by converting
         all the args (obtained by mathsat.msat_term_get_arg()) to
-        pysmt formulae
-        :type args: List of pysmt formulae
+        pyomt formulae
+        :type args: List of pyomt formulae
 
-        :returns The pysmt formula representing the given term
-        :rtype Pysmt formula
+        :returns The pyomt formula representing the given term
+        :rtype Pyomt formula
         """
         decl = mathsat.msat_term_get_decl(term)
         tag = mathsat.msat_decl_get_tag(self.msat_env(), decl)
@@ -678,8 +678,8 @@ class MSatConverter(Converter, DagWalker):
 
     def _back_array_const(self, term, args):
         msat_type = mathsat.msat_term_get_type(term)
-        pysmt_type = self._msat_type_to_type(msat_type)
-        return self.mgr.Array(pysmt_type.index_type, args[0])
+        pyomt_type = self._msat_type_to_type(msat_type)
+        return self.mgr.Array(pyomt_type.index_type, args[0])
 
     def _back_tag_unknown(self, term, args):
         """The TAG UNKNOWN is used to represent msat functions.
@@ -821,14 +821,14 @@ class MSatConverter(Converter, DagWalker):
             return mathsat.msat_make_term_ite(self.msat_env(), i, t, e)
 
     def walk_real_constant(self, formula, **kwargs):
-        assert is_pysmt_fraction(formula.constant_value())
+        assert is_pyomt_fraction(formula.constant_value())
         frac = formula.constant_value()
         n,d = frac.numerator, frac.denominator
         rep = str(n) + "/" + str(d)
         return mathsat.msat_make_number(self.msat_env(), rep)
 
     def walk_int_constant(self, formula, **kwargs):
-        assert is_pysmt_integer(formula.constant_value())
+        assert is_pyomt_integer(formula.constant_value())
         rep = str(formula.constant_value())
         return mathsat.msat_make_number(self.msat_env(), rep)
 
@@ -1077,7 +1077,7 @@ class MSatConverter(Converter, DagWalker):
 
     def declare_variable(self, var):
         if not var.is_symbol():
-            raise PysmtTypeError("Trying to declare as a variable something "
+            raise PyomtTypeError("Trying to declare as a variable something "
                                  "that is not a symbol: %s" % var)
         if var.symbol_name() not in self.symbol_to_decl:
             tp = self._type_to_msat(var.symbol_type())
@@ -1104,10 +1104,10 @@ if hasattr(mathsat, "MSAT_EXIST_ELIM_ALLSMT_FM"):
             lw: Loos-Weisspfenning
             """
             if algorithm not in ['fm', 'lw']:
-                raise PysmtValueError("Algorithm can be either 'fm' or 'lw'")
+                raise PyomtValueError("Algorithm can be either 'fm' or 'lw'")
 
             if logic is not None and (not logic <= LRA and algorithm != "lw"):
-                raise PysmtValueError("MathSAT quantifier elimination for LIA"\
+                raise PyomtValueError("MathSAT quantifier elimination for LIA"\
                                       " only works with 'lw' algorithm")
 
             QuantifierEliminator.__init__(self)
@@ -1131,12 +1131,12 @@ if hasattr(mathsat, "MSAT_EXIST_ELIM_ALLSMT_FM"):
         def exist_elim(self, variables, formula):
             logic = get_logic(formula, self.env)
             if not (logic <= LRA or logic <= LIA):
-                raise PysmtValueError("MathSAT quantifier elimination only"\
+                raise PyomtValueError("MathSAT quantifier elimination only"\
                                       " supports LRA or LIA (detected logic " \
                                       "is: %s)" % str(logic))
 
             if not logic <= LRA and self.algorithm != "lw":
-                raise PysmtValueError("MathSAT quantifier elimination for LIA"\
+                raise PyomtValueError("MathSAT quantifier elimination for LIA"\
                                       " only works with 'lw' algorithm")
 
 
@@ -1212,7 +1212,7 @@ class MSatInterpolator(Interpolator):
             logic = get_logic(f, self.environment)
             ok = any(logic <= l for l in self.LOGICS)
             if not ok:
-                raise PysmtValueError("Logic not supported by MathSAT "
+                raise PyomtValueError("Logic not supported by MathSAT "
                                       "interpolation. (detected logic is: %s)" \
                                       % str(logic))
 
@@ -1228,7 +1228,7 @@ class MSatInterpolator(Interpolator):
             self._check_logic(formulas)
 
             if len(formulas) < 2:
-                raise PysmtValueError("interpolation needs at least 2 formulae")
+                raise PyomtValueError("interpolation needs at least 2 formulae")
 
             cfg = mathsat.msat_create_config()
             mathsat.msat_set_option(cfg, "interpolation", "true")
@@ -1253,13 +1253,13 @@ class MSatInterpolator(Interpolator):
             if res == mathsat.MSAT_SAT:
                 return None
 
-            pysmt_ret = []
+            pyomt_ret = []
             for i in xrange(1, len(groups)):
                 itp = mathsat.msat_get_interpolant(env, groups[:i])
                 f = self.converter.back(itp)
-                pysmt_ret.append(f)
+                pyomt_ret.append(f)
 
-            return pysmt_ret
+            return pyomt_ret
         finally:
             if cfg:
                 mathsat.msat_destroy_config(cfg)

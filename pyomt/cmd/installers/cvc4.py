@@ -16,7 +16,7 @@ from __future__ import absolute_import
 import os
 import sys
 
-from pysmt.cmd.installers.base import SolverInstaller, TemporaryPath
+from pyomt.cmd.installers.base import SolverInstaller, TemporaryPath
 
 
 class CVC4Installer(SolverInstaller):

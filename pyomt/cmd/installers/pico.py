@@ -17,7 +17,7 @@ import codecs
 
 from six.moves.urllib import request as urllib2
 
-from pysmt.cmd.installers.base import SolverInstaller, TemporaryPath
+from pyomt.cmd.installers.base import SolverInstaller, TemporaryPath
 
 
 class PicoSATInstaller(SolverInstaller):

@@ -51,26 +51,26 @@
 (maximize x :lower (- (/ 21 8)) :upper 3          :id max_const_x)
 ;;; UNSAT (empty interval)
 ;(minimize x :lower 10           :upper 1          :id unsat_1_x)
-(minimize x :lower 10           :upper 10         :id unsat_2_x)
+;(minimize x :lower 10           :upper 10         :id unsat_2_x)
 
 ;
 ; BV
 ;
 ;;; SAT
 (minimize y                                                           :id unbounded_y)
-;(minimize y :lower bv_bound                                           :id min_ubv_y)
+(minimize y :lower bv_bound                                           :id min_ubv_y)
 (maximize y                            :upper bv_bound                :id max_ubv_y)
-;(minimize y :lower bv_bound                                   :signed :id min_sbv_y)
-;(maximize y                            :upper bv_bound        :signed :id max_sbv_y)
+(minimize y :lower bv_bound                                   :signed :id min_sbv_y)
+(maximize y                            :upper bv_bound        :signed :id max_sbv_y)
 (minimize y :lower ((_ to_bv 4) 0)     :upper ((_ to_bv 4) 5)         :id min_const_ubv_y)
 ;(maximize y :lower #b0000              :upper ((_ to_bv 4) 5)         :id max_const_ubv_y)
 (minimize y :lower ((_ to_bv 4) (- 5)) :upper ((_ to_bv 4) 5) :signed :id min_const_sbv_y)
 (maximize y :lower ((_ to_bv 4) (- 5)) :upper ((_ to_bv 4) 5) :signed :id max_const_sbv_y)
 ;;; UNSAT (empty interval)
 (minimize y :lower ((_ to_bv 4) (- 5)) :upper ((_ to_bv 4) 5)         :id unsat_1_y)
-;(minimize y :lower #b0111              :upper #b0001                  :id unsat_2_y)
-;(minimize y :lower #b0111              :upper #b0111                  :id unsat_3_y)
-;(minimize y :lower #b0000              :upper #b1111          :signed :id unsat_4_y)
+(minimize y :lower #b0111              :upper #b0001                  :id unsat_2_y)
+(minimize y :lower #b0111              :upper #b0111                  :id unsat_3_y)
+(minimize y :lower #b0000              :upper #b1111          :signed :id unsat_4_y)
 
 ;
 ; FP

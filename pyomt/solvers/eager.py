@@ -17,7 +17,7 @@
 #
 from pyomt.solvers.solver import Model
 from pyomt.environment import get_env
-from pyomt.exceptions import PysmtTypeError
+from pyomt.exceptions import PyomtTypeError
 
 
 class EagerModel(Model):
@@ -48,7 +48,7 @@ class EagerModel(Model):
 
         res = r.simplify()
         if not res.is_constant():
-            raise PysmtTypeError("Was expecting a constant but got %s" % res)
+            raise PyomtTypeError("Was expecting a constant but got %s" % res)
         return res
 
     def _complete_model(self, symbols):
@@ -58,7 +58,7 @@ class EagerModel(Model):
 
         for s in undefined_symbols:
             if not s.is_symbol():
-                raise PysmtTypeError("Was expecting a symbol but got %s" %s)
+                raise PyomtTypeError("Was expecting a symbol but got %s" %s)
 
             if s.symbol_type().is_bool_type():
                 value = mgr.Bool(False)
@@ -69,7 +69,7 @@ class EagerModel(Model):
             elif s.symbol_type().is_bv_type():
                 value = mgr.BVZero(s.bv_width())
             else:
-                raise PysmtTypeError("Unhandled type for %s: %s" %
+                raise PyomtTypeError("Unhandled type for %s: %s" %
                                      (s, s.symbol_type()))
 
             self.completed_assignment[s] = value

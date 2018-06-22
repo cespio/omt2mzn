@@ -35,9 +35,9 @@ from pyomt.solvers.smtlib import SmtLibBasicSolver, SmtLibIgnoreMixin
 from pyomt.walkers import DagWalker
 from pyomt.exceptions import SolverReturnedUnknownResultError
 from pyomt.exceptions import (InternalSolverError, NonLinearError,
-                              PysmtValueError, PysmtTypeError)
+                              PyomtValueError, PyomtTypeError)
 from pyomt.decorators import clear_pending_pop, catch_conversion_error
-from pyomt.constants import Fraction, is_pysmt_integer
+from pyomt.constants import Fraction, is_pyomt_integer
 
 import pyomt.logics
 
@@ -62,9 +62,9 @@ STATUS_UNKNOWN = 2
 STATUS_SAT = 3
 STATUS_UNSAT = 4
 
-def yices_logic(pysmt_logic):
+def yices_logic(pyomt_logic):
     """Return a Yices String representing the given pySMT logic."""
-    ylogic = str(pysmt_logic)
+    ylogic = str(pyomt_logic)
     if ylogic == "QF_BOOL":
         ylogic = "NONE"
     return ylogic
@@ -76,7 +76,7 @@ class YicesOptions(SolverOptions):
         # TODO: Yices Supports UnsatCore extraction
         # but we did not wrapped it yet.
         if self.unsat_cores_mode is not None:
-            raise PysmtValueError("'unsat_cores_mode' option not supported.")
+            raise PyomtValueError("'unsat_cores_mode' option not supported.")
 
     @staticmethod
     def _set_option(cfg, name, value):
@@ -87,7 +87,7 @@ class YicesOptions(SolverOptions):
             # provided to the parameter is invalid.
             err = yicespy.yices_error_code()
             if err == yicespy.CTX_INVALID_PARAMETER_VALUE:
-                raise PysmtValueError("Error setting the option "
+                raise PyomtValueError("Error setting the option "
                                       "'%s=%s'" % (name,value))
 
     def __call__(self, solver):
@@ -122,7 +122,7 @@ class YicesOptions(SolverOptions):
         for k,v in self.solver_options.items():
             rv = yicespy.yices_set_param(params, k, v)
             if rv != 0:
-                raise PysmtValueError("Error setting the option '%s=%s'" % (k,v))
+                raise PyomtValueError("Error setting the option '%s=%s'" % (k,v))
         solver.yices_params = params
 
 # EOC YicesOptions
@@ -376,7 +376,7 @@ class YicesConverter(Converter, DagWalker):
         return res
 
     def walk_int_constant(self, formula, **kwargs):
-        assert is_pysmt_integer(formula.constant_value())
+        assert is_pyomt_integer(formula.constant_value())
         rep = str(formula.constant_value())
         res = yicespy.yices_parse_rational(rep)
         self._check_term_result(res)
@@ -641,7 +641,7 @@ class YicesConverter(Converter, DagWalker):
 
     def declare_variable(self, var):
         if not var.is_symbol():
-            raise PysmtTypeError("Trying to declare as a variable something "
+            raise PyomtTypeError("Trying to declare as a variable something "
                                  "that is not a symbol: %s" % var)
         if var.symbol_name() not in self.symbol_to_decl:
             tp = self._type_to_yices(var.symbol_type())

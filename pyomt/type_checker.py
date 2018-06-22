@@ -26,7 +26,7 @@ import pyomt.walkers as walkers
 import pyomt.operators as op
 
 from pyomt.typing import BOOL, REAL, INT, BVType, ArrayType, STRING
-from pyomt.exceptions import PysmtTypeError
+from pyomt.exceptions import PyomtTypeError
 
 
 class SimpleTypeChecker(walkers.DagWalker):
@@ -42,7 +42,7 @@ class SimpleTypeChecker(walkers.DagWalker):
         """ Returns the pyomt.types type of the formula """
         res = self.walk(formula)
         if not self.be_nice and res is None:
-            raise PysmtTypeError("The formula '%s' is not well-formed" \
+            raise PyomtTypeError("The formula '%s' is not well-formed" \
                                  % str(formula))
         return res
 
@@ -185,7 +185,7 @@ class SimpleTypeChecker(walkers.DagWalker):
     def walk_equals(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         if args[0].is_bool_type():
-            raise PysmtTypeError("The formula '%s' is not well-formed."
+            raise PyomtTypeError("The formula '%s' is not well-formed."
                                  "Equality operator is not supported for Boolean"
                                  " terms. Use Iff instead." \
                                  % str(formula))
@@ -196,6 +196,8 @@ class SimpleTypeChecker(walkers.DagWalker):
     @walkers.handles(op.LE, op.LT)
     def walk_math_relation(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
+        #print(formula)
+        #print(args)
         if args[0].is_real_type():
             return self.walk_type_to_type(formula, args, REAL, BOOL)
         return self.walk_type_to_type(formula, args, INT, BOOL)
@@ -336,7 +338,7 @@ def assert_no_boolean_in_args(args):
     """ Enforces that the elements in args are not of BOOL type."""
     for arg in args:
         if (arg.get_type() == BOOL):
-            raise PysmtTypeError("Boolean Expressions are not allowed "
+            raise PyomtTypeError("Boolean Expressions are not allowed "
                                  "in arguments")
 
 
@@ -345,7 +347,7 @@ def assert_boolean_args(args):
     for arg in args:
         t = arg.get_type()
         if (t != BOOL):
-            raise PysmtTypeError("%s is not allowed in arguments" % t)
+            raise PyomtTypeError("%s is not allowed in arguments" % t)
 
 
 def assert_same_type_args(args):
@@ -354,7 +356,7 @@ def assert_same_type_args(args):
     for arg in args[1:]:
         t = arg.get_type()
         if (t != ref_t):
-            raise PysmtTypeError("Arguments should be of the same type!\n" +
+            raise PyomtTypeError("Arguments should be of the same type!\n" +
                              str([str((a, a.get_type())) for a in args]))
 
 
@@ -363,6 +365,6 @@ def assert_args_type_in(args, allowed_types):
     for arg in args:
         t = arg.get_type()
         if (t not in allowed_types):
-            raise PysmtTypeError(
+            raise PyomtTypeError(
                 "Argument is of type %s, but one of %s was expected!\n" %
                 (t, str(allowed_types)))

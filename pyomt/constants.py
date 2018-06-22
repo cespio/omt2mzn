@@ -16,7 +16,7 @@
 
 import os
 from six import PY2
-from pyomt.exceptions import PysmtImportError
+from pyomt.exceptions import PyomtImportError
 # The environment variable can be used to force the configuration
 # of the Fraction class.
 #
@@ -39,7 +39,7 @@ try:
     HAS_GMPY = True
 except ImportError as ex:
     if ENV_USE_GMPY is True:
-        raise PysmtImportError(str(ex))
+        raise PyomtImportError(str(ex))
 
 if ENV_USE_GMPY is False:
     # Explicitely disable GMPY
@@ -70,7 +70,7 @@ else:
 FractionClass = type(Fraction(1,2))
 
 
-def is_pysmt_fraction(var):
+def is_pyomt_fraction(var):
     """Tests whether var is a Fraction.
 
     This takes into account the class being used to represent the Fraction.
@@ -90,7 +90,7 @@ else:
 IntegerClass = type(Integer(1))
 
 
-def is_pysmt_integer(var):
+def is_pyomt_integer(var):
     """Tests whether var is an Integer.
 
     This takes into account the class being used to represent the Integer.
@@ -135,8 +135,8 @@ def is_python_boolean(var):
     return var is True or var is False
 
 
-def pysmt_integer_from_integer(value):
-    """Return a pysmt Integer for the given value."""
+def pyomt_integer_from_integer(value):
+    """Return a pyomt Integer for the given value."""
     if type(value) == IntegerClass:
         # Nothing to do
         return value
@@ -154,15 +154,15 @@ else:
 
 
 if USE_GMPY:
-    def pysmt_fraction_from_rational(value):
-        """Return a pysmt Fraction for the rational value."""
+    def pyomt_fraction_from_rational(value):
+        """Return a pyomt Fraction for the rational value."""
         if type(value) == FractionClass:
             # Nothing to do
             return value
         return Fraction(value)
 else:
-    def pysmt_fraction_from_rational(value):
-        """Return a pysmt Fraction for the rational value."""
+    def pyomt_fraction_from_rational(value):
+        """Return a pyomt Fraction for the rational value."""
         if type(value) == FractionClass:
             # Nothing to do
             return value

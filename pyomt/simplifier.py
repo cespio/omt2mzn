@@ -22,7 +22,7 @@ from pyomt.walkers import handles
 import pyomt.operators as op
 import pyomt.typing as types
 from pyomt.utils import set_bit
-from pyomt.exceptions import PysmtValueError
+from pyomt.exceptions import PyomtValueError
 
 
 class Simplifier(pyomt.walkers.DagWalker):
@@ -838,7 +838,7 @@ class BddSimplifier(Simplifier):
         possible_solvers = [sname for sname in self.env.factory.all_solvers()\
                             if sname!="bdd"]
         if len(possible_solvers) == 0:
-            raise PysmtValueError("To validate at least another solver must "
+            raise PyomtValueError("To validate at least another solver must "
                                   "be available!")
         self._validation_sname = possible_solvers[0]
         self._validate_simplifications = value

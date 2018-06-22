@@ -1,0 +1,260 @@
+---old maximize/minimize
+ef _cmd_maximize(self,current,tokens): #---optimathsat
+        """(maximize <term> [:id <string>] [:signed]
+[:lower <const_term>] [:upper <const_term>])"""
+        curr=""
+        params=[]
+        while(curr!=")"):
+            try:
+                parse = self.parse_atom(tokens,current)
+            except PyomtSyntaxError:
+                parse = self.get_expression(tokens)
+            params.append(parse)
+            print(params)
+            curr=tokens.consume
+        '''
+        try:
+            params = self.get_expression(tokens)
+        except PyomtSyntaxError:
+            params = self.parse_atom(tokens,current)
+        try:
+            params1 = self.parse_atoms(tokens,current,min_size=1,max_size=99)
+            tokens.add_extra_token(")")
+        except PyomtSyntaxError:
+            params1 = []
+            tokens.add_extra_token(")")
+        
+        '''
+        tokens.add_extra_token(")")
+        self.consume_closing(tokens,current)
+        return SmtLibCommand(current, [parse])
+    
+    def _cmd_minimize(self,current,tokens): #---optimathsat
+        """(minimize <term> [:id <string>] [:signed]
+[:lower <const_term>] [:upper <const_term>])"""
+        obj=None
+        try:
+            obj = self.parse_atom(tokens,current)
+        except PyomtSyntaxError:
+            obj = self.get_expression(tokens)
+        print(obj)
+        params=[]
+        curr=tokens.consume()
+        while curr!=")":
+            tokens.add_extra_token(curr)
+            curr_parse=self.parse_atom(tokens,current)
+            if curr_parse==":lower" or curr_parse==":upper":
+                exp=self.get_expression(tokens)
+                params.append(curr_parse)
+                params.append(exp)
+            else:
+                params.append(curr_parse)
+            curr=tokens.consume()
+
+        print("FINITO")
+        '''
+        while(curr!=")"):
+            parse=None
+            try:
+                parse = self.get_expression(tokens)
+                print("parse2",parse)
+                params.append(parse)
+            except PyomtSyntaxError:
+                parse = self.parse_atom(tokens,current)
+                print("parse1",parse)
+                params.append(parse)
+            print("params",params)
+            curr=tokens.consume()
+            print("curr",curr)
+        print("FINITO")
+        '''
+        '''
+        try:
+            params = self.get_expression(tokens)
+        except PyomtSyntaxError:
+            params = self.parse_atom(tokens,current)
+        try:
+            params1 = self.parse_atoms(tokens,current,min_size=1,max_size=99)
+            tokens.add_extra_token(")")
+        except PyomtSyntaxError:
+            params1 = []
+            tokens.add_extra_token(")")
+        
+        '''
+        
+        tokens.add_extra_token(")")
+        self.consume_closing(tokens,current)
+        return SmtLibCommand(current,[obj]+[params])
+
+--- bottom ---
+'''
+def adjust_type_var(var_dict,were_int):
+    for el in var_dict:
+        if el in were_int:
+            var_dict[el]=["Int"]
+    return var_dict
+
+#assert soft list is so constructed [expression,weight,id]
+def adjust_assert_soft_var(var_dict,asserts_soft_list,were_int):
+    id_expression_dict={}
+    for ass_soft in asserts_soft_list:
+        id=ass_soft[2]
+        if id not in id_expression_dict:
+            id_expression_dict[id]=[ass_soft[1]]
+        else:
+            id_expression_dict[id].append(ass_soft[1])
+    #verificare il tipo per tutte le espressioni, tipo base int, se becco un float tutti float ed esco
+    for key_list in id_expression_dict:
+        flag="Int"
+        for exp in id_expression_dict[key_list]:
+            print(type(exp))
+            if isinstance(exp,pyomt.fnode.FNode):
+                args_list=exp.args
+                #iterate over the list of argument -> if one of them is not one with the point zerol
+                print(args_list)
+                or arg in args_list:
+                    print(arg)
+                    if ".0" not in str(args) or arg.get_type()!="Int":
+                        print(arg," is not Int")
+
+'''    
+'''            
+def add_id_variables(commands_list,var_dict,were_int):
+    id_c=0
+    
+    for each max/min command add a variable which name is equal to its id,
+    if this does not exist yet add a unique id, is a counter sufficient?
+    
+    for (name,args) in commands_list:
+        args_inner=args[1]
+        expression_type=args[0].get_type()
+        print(args[0],expression_type)
+        if ":id" not in args_inner:
+            var_id_name="opt_var_"+str(id_c)
+            args_inner+=[":id",var_id_name]
+            if str(args[0]) in were_int or expression_type is "Int":
+                var_dict[var_id_name]=["Real"]
+            else:
+                var_dict[var_id_name]=["Real"]
+            id_c+=1
+        else:
+            index=args_inner.index(":id")
+            var_id_name=args_inner[index+1]
+            if var_id_name not in [str(el) for el in var_dict.keys()]:
+                var_dict[var_id_name]=["Real"]
+    print("WERE INT",were_int)
+    print("VAR_DICT",var_dict)
+    return var_dict
+'''
+
+'''
+def write_stack_box_BV(var_dict,asserts_list,asserts_soft_list,commands_list,out_file):
+    i=0
+    new_var="obj_temp_var"
+    for (name,args) in commands_list:
+        upper=None
+        lower=None
+        file_out=open(out_file.replace(".mzn","_b"+str(i))+".mzn","w")
+        i+=1
+        bv_len=write_list_variables_BV(var_dict,file_out)
+        file_out.write("array[1.."+str(bv_len)+"] of var 0..1:"+new_var+";\n")
+        write_assertions_BV(asserts_list,file_out,var_dict.keys(),bv_len)
+        #write_assertions_soft(asserts_soft_list,file_out,flag)
+        #writing the maximize and the minimize
+        args_inner=args[1]
+        if ":upper" in args_inner:
+            index=args_inner.index(":upper")
+            upper=args_inner[index+1]
+        if ":lower" in args:
+            index=args_inner.index(":lower")
+            lower=args_inner[index+1]
+        file_out.write("constraint ("+new_var+"="+str(args[0])+");\n")
+        if upper is not None:
+            upper=re.sub(r"([0-9]+)_[0-9]+",r"\1",upper) #numbers
+            file_out.write("constraint ("+new_var+"<="+upper+");\n")
+        if lower is not None:
+            lower=re.sub(r"([0-9]+)_[0-9]+",r"\1",lower) #numbers
+            file_out.write("constraint ("+new_var+">="+lower+");\n")
+        if name=='maximize':
+            file_out.write("solve maximize toNum("+new_var+");\n")
+        else:
+            file_out.write("solve minimize toNum("+new_var+");\n")
+        file_out.close()
+'''
+
+'''
+#specialize for BV variables creation
+def write_list_variables_BV(variables,file_out):
+    #TODO: how to declare a parameter?  
+    for var in variables.keys(): #variable definition
+        bv_search=re.search(r"BV{([0-9]+)}",str(variables[var][0]))
+        if bv_search:
+            bv_len,=bv_search.groups()
+            file_out.write("array[1.."+bv_len+"] of var bool:"+str(var)+";\n")
+    return bv_len
+'''
+
+
+'''
+def write_assertions_BV(asserts_list,file_out,list_var,bv_len): #the last parameter indicates the list of BV variables to be transformed
+    #reference: https://github.com/hakank/hakank/blob/master/minizinc/bit_vector1.mzn
+    #TODO: occhio al segno
+    bv_len_int=bv_len
+    file_out.write("function var int: toNum(array[1.."+str(bv_len_int)+"] of var int: a) = sum([ceil(pow(2,"+str(bv_len_int)+"-i)) * a[i]| i in 1.."+str(bv_len_int)+"]);\n")
+    for el in asserts_list:
+        el=re.sub(r"\(! (.*)\)",r"not(\1)",str(el))
+        el=re.sub(r"\(!(.*)\)",r"not(\1)",str(el))
+        assert_str = str(el).strip("[|]").replace("|","\/").replace("&","/\\")
+        assert_str = re.sub(r"([0-9]+)_[0-9]+",r"\1",assert_str) #numbers
+        assert_str = re.sub(r"s([<=,=>,<,>])",r"\1",assert_str) #relationship operators
+        for var in list_var:
+            assert_str=re.sub(r"("+str(var)+")",r"toNum(\1)",assert_str)
+        file_out.write("constraint "+assert_str+";\n")
+'''
+
+   '''
+            bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)",l) #this is necesarry because pyomt do not support _to_bv
+            if bv_search:
+                (a1,a2)=bv_search.groups()
+                bv=str('{0:0'+a1+'b}').format(int(a2))        
+                l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)","#b"+bv,l)
+            bv_search=re.search(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)",l)
+            if bv_search:
+                (a1,a2)=bv_search.groups()
+                bv=str('{0:0'+str(int(a1)-1)+'b}').format(int(a2))
+                l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)","#b1"+bv,l)
+            '''
+
+    '''
+    for l in nl:
+            new_l=[]
+            l2=l.replace("(","( ").replace(")"," )")
+            if "push" not in l2 and "pop" not in l2 and "bv" not in l2 and "BitVec" not in l2:
+                l2_split=l2.split(" ")
+                for w in l2_split:
+                    if w=="Int":
+                        new_l.append("Real")
+                    elif w.isdigit():
+                        new_l.append(w+".0")
+                    else:
+                        new_l.append(w)
+                temp_file.write(" ".join(new_l))
+            else:
+                temp_file.write(l2)
+    '''
+
+#logic_name=str([cmd.args[0] for cmd in commands if cmd.name=='set-logic'][0])
+
+"""
+Altra ed eventuale
+function ann : minimize_lex_float_2(array[int] of var float : objs) =
+    next() /\ commit() /\
+    scope(
+    repeat(i in 1..length(objs))(
+        print("value of i "++show(i)++"\n") /\
+        repeat(
+            if next() then commit() /\ print() /\ post(objs[i]<=sol(objs[i])) 
+            else  break  endif
+        ))
+    );
+"""

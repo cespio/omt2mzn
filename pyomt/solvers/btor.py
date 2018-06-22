@@ -31,7 +31,7 @@ from pyomt.solvers.smtlib import SmtLibBasicSolver, SmtLibIgnoreMixin
 from pyomt.solvers.eager import EagerModel
 from pyomt.walkers import DagWalker
 from pyomt.exceptions import (SolverReturnedUnknownResultError,
-                              ConvertExpressionError, PysmtValueError)
+                              ConvertExpressionError, PyomtValueError)
 from pyomt.decorators import clear_pending_pop, catch_conversion_error
 from pyomt.logics import QF_BV, QF_UFBV, QF_ABV, QF_AUFBV, QF_AX
 from pyomt.constants import to_python_integer
@@ -41,7 +41,7 @@ class BoolectorOptions(SolverOptions):
     def __init__(self, **base_options):
         SolverOptions.__init__(self, **base_options)
         if self.random_seed is not None:
-            raise PysmtValueError("BTOR Does not support Random Seed setting.")
+            raise PyomtValueError("BTOR Does not support Random Seed setting.")
 
         # Disabling Incremental usage is not allowed.
         # This needs to be set to 1
@@ -125,13 +125,13 @@ class BoolectorOptions(SolverOptions):
         try:
             btor.Set_opt(available_options[name], value)
         except TypeError:
-            raise PysmtValueError("Error setting the option '%s=%s'" \
+            raise PyomtValueError("Error setting the option '%s=%s'" \
                                   % (name,value))
         except boolector.BoolectorException:
-            raise PysmtValueError("Error setting the option '%s=%s'" \
+            raise PyomtValueError("Error setting the option '%s=%s'" \
                                   % (name,value))
         except KeyError:
-            raise PysmtValueError("Unable to set non-existing option '%s'. "
+            raise PyomtValueError("Unable to set non-existing option '%s'. "
                                   "The accepted options options are: %s" \
                                   % (name, ", ".join(boolector.BoolectorOpt(btor, io).lng
                                                      for io in self.internal_options)))

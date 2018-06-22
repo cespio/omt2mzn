@@ -31,9 +31,9 @@ on a factory service. Each BitVector width is represented by a
 different instance of BVType.
 
 """
-import pysmt
+import pyomt
 
-from pysmt.exceptions import PysmtValueError, PysmtModeError
+from pyomt.exceptions import PyomtValueError, PyomtModeError
 
 
 class PySMTType(object):
@@ -51,7 +51,7 @@ class PySMTType(object):
             self.arity = decl.arity
             if (args and self.arity != len(args)) or \
                (not args and self.arity != 0):
-                raise PysmtValueError("Invalid number of arguments. " +
+                raise PyomtValueError("Invalid number of arguments. " +
                                       "Expected %d, got %d." % (self.arity,
                                                                 len(args)))
             self.custom_type = decl.custom_type
@@ -342,10 +342,10 @@ class _TypeDecl(object):
         self.custom_type = False
 
     def __call__(self, *args):
-        env = pysmt.environment.get_env()
+        env = pyomt.environment.get_env()
         # Note: This uses the global type manager
         if not env.enable_infix_notation:
-            raise PysmtModeError("Infix notation disabled. "
+            raise PyomtModeError("Infix notation disabled. "
                                  "Use type_manager.get_type_instance instead.")
         return env.type_manager.get_type_instance(self, *args)
 
@@ -515,7 +515,7 @@ class TypeManager(object):
         try:
             td = self._custom_types_decl[name]
             if td.arity != arity:
-                raise PysmtValueError("Type %s previously declared with arity "\
+                raise PyomtValueError("Type %s previously declared with arity "\
                                       " %d." % (name, td.arity))
         except KeyError:
             td = _TypeDecl(name, arity)
@@ -586,7 +586,7 @@ class TypeManager(object):
 # Util
 def assert_is_type(target, func_name):
     if not isinstance(target, PySMTType):
-        raise PysmtValueError("Invalid type '%s' in %s." % (target, func_name))
+        raise PyomtValueError("Invalid type '%s' in %s." % (target, func_name))
 
 def assert_are_types(targets, func_name):
     for target in targets:
@@ -596,20 +596,20 @@ def assert_are_types(targets, func_name):
 
 def BVType(width=32):
     """Returns the BV type for the given width."""
-    mgr = pysmt.environment.get_env().type_manager
+    mgr = pyomt.environment.get_env().type_manager
     return mgr.BVType(width=width)
 
 def FunctionType(return_type, param_types):
     """Returns Function Type with the given arguments."""
-    mgr = pysmt.environment.get_env().type_manager
+    mgr = pyomt.environment.get_env().type_manager
     return mgr.FunctionType(return_type=return_type, param_types=param_types)
 
 def ArrayType(index_type, elem_type):
     """Returns the Array type with the given arguments."""
-    mgr = pysmt.environment.get_env().type_manager
+    mgr = pyomt.environment.get_env().type_manager
     return mgr.ArrayType(index_type=index_type, elem_type=elem_type)
 
 def Type(name, arity=0):
     """Returns the Type Declaration with the given name (sort declaration)."""
-    mgr = pysmt.environment.get_env().type_manager
+    mgr = pyomt.environment.get_env().type_manager
     return mgr.Type(name=name, arity=arity)

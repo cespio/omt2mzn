@@ -1,24 +1,22 @@
 
 
 ( set-option :opt.priority lex )
-( set-logic QF_LIA )
 ( declare-fun x (  ) Real )
-( declare-fun y (  ) Real )
+( declare-fun y (  ) Int )
 ( declare-fun a (  ) Bool )
 ( declare-fun b (  ) Bool )
 ( declare-fun c (  ) Bool )
 ( declare-fun d (  ) Bool )
 ( declare-fun e (  ) Bool )
 
-( assert ( = ( > ( + x y ) 0.0 ) a ) )
-( assert ( = ( < ( + ( * 2.0 x ) ( * 3.0 y ) ) ( - 10.0 ) ) c ) )
+( assert ( = ( > ( + x ( to_real y ) ) 0 ) a ) )
+( assert ( = ( < ( + ( * 2 x ) ( * 3 ( to_real y )  ) ) ( - 10 ) ) c ) )
 ( assert ( and ( or a b ) ( or c d ) ) )
 
-( assert ( => e ( < 10.0 x ) ) )
-( assert ( => ( < 10.0 x ) e ) )
+( assert ( => ( < 10 x ) e ) )
 
-( assert ( <= x 100.0 ) )
-( assert ( <= y 100.0 ) )
+( assert ( <= x 100 ) )
+( assert ( <= y 100 ) )
 
 
 ( maximize x )

@@ -40,7 +40,6 @@
 ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 
 (set-option :opt.priority lex)
-(set-logic QF_LIA)
 ;
 ; PROBLEM
 ;
@@ -52,11 +51,11 @@
 (declare-fun d () Bool)
 (declare-fun e () Bool)
 
-(assert (= (> (+ x y) 0) a))
-(assert (= (< (+ (* 2 x) (* 3 y)) (- 10)) c))
+(assert (= (> (+ x (to_real y)) 0) a))
+(assert (= (< (+ (* 2 x) (* 3 (to_real y) )) (- 10)) c))
 (assert (and (or a b) (or c d)))
 
-(assert (=> e (< 10 x)))
+;(assert (=> e (< 10 x)))
 (assert (=> (< 10 x) e))
 
 (assert (<= x 100))
