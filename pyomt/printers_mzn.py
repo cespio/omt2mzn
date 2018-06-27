@@ -42,6 +42,7 @@ class HRPrinter(TreeWalker):
         go. After reaching the thresholded value, "..." will be
         printed instead. This is mainly used for debugging.
         """
+        #print("Formula -> ",f)
         self.walk(f, threshold=None) #optimathsat
 
     def walk_threshold(self, formula):
@@ -51,6 +52,7 @@ class HRPrinter(TreeWalker):
         self.write("(")
         args = formula.args()
         for s in args[:-1]:
+            print "args -> ",s,"type->",s.get_type()
             yield s
             self.write(ops)
         yield args[-1]
@@ -71,7 +73,7 @@ class HRPrinter(TreeWalker):
             yield formula.arg(0)
 
     def walk_not(self, formula):
-        self.write("(! ")
+        self.write("(not ")
         yield formula.arg(0)
         self.write(")")
 
@@ -105,9 +107,9 @@ class HRPrinter(TreeWalker):
 
     def walk_bool_constant(self, formula):
         if formula.constant_value():
-            self.write("True")
+            self.write("true")
         else:
-            self.write("False")
+            self.write("false")
 
     def walk_bv_constant(self, formula):
         # This is the simplest SMT-LIB way of printing the value of a BV
@@ -153,15 +155,8 @@ class HRPrinter(TreeWalker):
         self.write(" SEXT ")
         self.write("%d)" % formula.bv_extend_step())
 
-    def walk_ite(self, formula):
-        self.write("(")
-        yield formula.arg(0)
-        self.write(" ? ")
-        yield formula.arg(1)
-        self.write(" : ")
-        yield formula.arg(2)
-        self.write(")")
-    '''  
+    
+     
     def walk_ite(self, formula): #optimathsat
         self.write("if ")
         yield formula.arg(0)
@@ -170,7 +165,7 @@ class HRPrinter(TreeWalker):
         self.write("  else  ")
         yield formula.arg(2)
         self.write(" endif ")
-    '''
+    
     def walk_forall(self, formula):
         return self.walk_quantifier("forall ", ", ", " . ", formula)
 
@@ -178,9 +173,9 @@ class HRPrinter(TreeWalker):
         return self.walk_quantifier("exists ", ", ", " . ", formula)
 
     def walk_toreal(self, formula):
-        self.write("ToReal(")
+        #self.write("ToReal(")
         yield formula.arg(0)
-        self.write(")")
+        #self.write(")")
 
     def walk_str_constant(self, formula):
         assert (type(formula.constant_value()) == str ), \
@@ -299,8 +294,8 @@ class HRPrinter(TreeWalker):
         yield formula.arg(0)
         self.write(")")
 
-    def walk_and(self, formula): return self.walk_nary(formula, " & ")
-    def walk_or(self, formula): return self.walk_nary(formula, " | ")
+    def walk_and(self, formula): return self.walk_nary(formula, " /\\ ")
+    def walk_or(self, formula): return self.walk_nary(formula, " \/ ")
     def walk_plus(self, formula): return self.walk_nary(formula, " + ")
     def walk_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_div(self, formula): return self.walk_nary(formula, " / ")

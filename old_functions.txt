@@ -258,3 +258,92 @@ function ann : minimize_lex_float_2(array[int] of var float : objs) =
         ))
     );
 """
+        #if flag:
+        #TODO:aggiungere casistica per i bitvector anche se non credo si possa implementare -> gestire il caso
+        #file_out.write("var float: "+new_var+";\n")
+        #else:
+        #    file_out.write("var int: "+new_var+";\n")
+        #bv_search=re.search(r"BV{([0-9]+)}",str(var_dict[new_var][0]))
+
+        Assert
+        #serializer=HRSerializer()
+        #ris=serializer.serialize(el)
+        #print(ris,type(ris))
+        #assert_str=re.sub(r"! (.*)",r"not(\1)",assert_str)
+        #assert_str=re.sub(r"!(.*)",r"not(\1)",assert_str)
+        #assert_str=re.sub("!","not",str(el))
+        #assert_str = assert_str.strip("[|]").replace("|","\/").replace("&","/\\")
+        #assert_str = re.sub("False","false",assert_str)
+        #assert_str = re.sub("True","true",assert_str)
+        #assert_str = re.sub(r"ToReal([A-Za-z0-9]+)",r"\1",assert_str)
+        #assert_str = re.sub(r"s([<=,=>,<,>])",r"\1",assert_str)#TODO: usare qui conversione con il segnosare qui conversione con il segno
+        #assert_str = re.sub(r"u([<=,=>,<,>])",r"\1",assert_str)
+        #bv_search_l=re.findall(r"([0-9]+)_[0-9]+",assert_str) #anche da qui posso ricavarmi la lenght
+        '''
+
+        Assert -  soft
+        #el[0]=re.sub(r"\(! (.*)\)",r"not(\1)",str(el[0]))
+        #el[0]=re.sub(r"\(!(.*)\)",r"not(\1)",str(el[0]))
+        #el[0] = re.sub("False","false",str(el[0]))
+        #el[0] = re.sub("True","true",str(el[0]))
+        #el[0] = re.sub(r"ToReal([A-Za-z0-9]+)",r"\1",str(el[0]))
+
+
+def write_list_variables(variables,file_out):
+    bv_len=0
+    for var in variables.keys():
+        '''
+        In minizinc if no domain is specified there can be problems with the solver like g12
+        '''
+        bv_search=re.search(r"BV{([0-9]+)}",str(variables[var][0]))
+        if bv_search and len(variables[var])!=2: 
+            bv_len,=bv_search.groups()
+            file_out.write("array[1.."+bv_len+"] of var bool:"+str(var)+";\n")
+        elif bv_search and len(variables[var])==2: #parameter condition
+            #bv_len,=bv_search.groups() useless
+            expr = str(variables[var][1])
+            #two different kind of search -> two different type to express the bitvector
+            bv_search_l=re.findall(r"([0-9]+)_([0-9])+",expr) #retrieve the length also from here
+            if len(bv_search_l)>0:
+                for (bv_value_match,bv_len_int) in bv_search_l:
+                    bv_value=int(bv_value_match)
+                    bv_len_int=int(bv_len_int)
+                    if bv_value>pow(2,bv_len_int-1):
+                        bv_value-=pow(2,bv_len_int)
+                        expr = re.sub(""+bv_value_match+"_[0-9]+",str(bv_value),expr)
+                
+            bv_search_l2=re.findall(r"#b([01]+)",expr)
+            if len(bv_search_l2)>0:
+                for match in bv_search_l2:
+                    int_value=int(match,2)    
+                    #int_value=x - (1 << len(match)) avoid sign
+                    expr = re.sub("#b"+match,str(int_value),expr)
+            file_out.write("par int: "+str(var)+" = "+str(expr)+";\n")                 
+        elif "Real" in str(variables[var][0]) and len(variables[var])!=2:
+            file_out.write("var -2147483646.0..2147483646.0 : "+str(var)+";\n")
+            #file_out.write("var float : "+str(var)+";\n")  
+        elif len(variables[var])==2: #parameter declaration
+            type,name=variables[var][0],variables[var][1]
+            if "Real" in str(type): 
+                type="float"
+            file_out.write("par "+str(type).lower()+": "+str(var)+" = "+str(name)+";\n")
+        elif len(variables[var])==1:
+            type=variables[var][0]
+            file_out.write("var "+str(type).lower()+":"+str(var)+";\n")
+
+
+    '''
+def recursive_splitting(formula,file_out,serializer):
+    list_f=[formula]
+    #print(len(list_f))
+    while len(list_f)!=0:
+        formula=list_f.pop()
+        #print(len(list_f))
+        gen_ret=conjunctive_partition(formula)
+        for sub_f in gen_ret:
+            #print("Bella")
+            if get_formula_size(sub_f) > 2000:
+                list_f.append(sub_f)
+            else:
+                file_out.write("constraint "+serializer.serialize(sub_f)+";\n")
+'''                         

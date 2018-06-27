@@ -43,7 +43,7 @@ import six.moves.configparser as cp
 from warnings import warn
 
 from pyomt.logics import get_logic_by_name
-from pyomt.exceptions import pyomtIOError
+from pyomt.exceptions import PyomtIOError
 
 def configure_environment(config_filename, environment):
     """

@@ -513,7 +513,7 @@ class FNode(object):
         return self._content.payload[1]
 
     def __str__(self):
-        return self.serialize(threshold=5)
+        return self.serialize(threshold=None)
 
     def __repr__(self):
         return str(self)
