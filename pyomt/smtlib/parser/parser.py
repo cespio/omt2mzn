@@ -591,10 +591,11 @@ class SmtLibParser(object):
 
                 raise PyomtSyntaxError("Expected number in '_ bv' expression: "
                                        "'%s'" % op, tokens.pos_info)
-            try:
-                fun = mgr.SBV(v, width) #optimathsat
-            except PyomtValueError:
-                fun = mgr.BV(v,width) #optimathsat
+            #try:
+            #    fun = mgr.SBV(v, width) #optimathsat
+            #except PyomtValueError:
+            #    fun = mgr.BV(v,width) #optimathsat
+            fun = mgr.BV(v,width)
             
 
         else:
@@ -806,15 +807,15 @@ class SmtLibParser(object):
         """
         mgr = self.env.formula_manager
         stack = []
-
+        stack2 = ""
         while True:
             tk = tokens.consume()
-
+            stack2=stack2+" "+tk
             if tk == "(":
                 while tk == "(":
                     stack.append([])
                     tk = tokens.consume()
-
+                    stack2=stack2+" "+tk
                 if tk in self.interpreted:
                     fun = self.interpreted[tk]
                     fun(stack, tokens, tk)
@@ -831,7 +832,6 @@ class SmtLibParser(object):
                 
                 try:
                     res = fun(*lst)
-                    #print("lst -> ",lst)
                 except TypeError as err:
                     if not callable(fun):
                         raise NotImplementedError("Unknown function '%s'" % fun)
@@ -847,6 +847,7 @@ class SmtLibParser(object):
                     stack[-1].append(self.atom(tk, mgr))
                 except IndexError:
                     return self.atom(tk, mgr)
+
 
     def get_script(self, script):
         """
@@ -1117,7 +1118,7 @@ class SmtLibParser(object):
 
     def _cmd_set_option(self, current, tokens):
         """(set-option <option>)"""
-        elements = self.parse_atoms(tokens, current, 2)
+        elements = self.parse_atoms(tokens, current, 3) #optimathsat
         return SmtLibCommand(current, elements)
 
     def _cmd_assert(self, current, tokens):
@@ -1323,7 +1324,6 @@ class SmtLibParser(object):
         var = self.parse_atom(tokens, current)
         namedparams = self.parse_named_params(tokens, current)
         rtype = self.parse_type(tokens, current)
-
         for (x,t) in namedparams:
             v = self._get_var(x, t)
             self.cache.bind(x, v)
@@ -1334,6 +1334,9 @@ class SmtLibParser(object):
         for x in formal:
             self.cache.unbind(x.symbol_name())
         # Finish Parsing
+        #print("VAR",var)
+        #print("FORMAL ",formal)
+        #print("NAMED PARAMS",namedparams)
         self.consume_closing(tokens, current)
         self.cache.define(var, formal, ebody)
         return SmtLibCommand(current, [var, formal, rtype, ebody])

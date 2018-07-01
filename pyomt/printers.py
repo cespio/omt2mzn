@@ -326,6 +326,7 @@ class HRPrinter(TreeWalker):
     def walk_bv_ashr(self, formula): return self.walk_nary(formula, " a>> ")
     def walk_bv_comp(self, formula): return self.walk_nary(formula, " bvcomp ")
     walk_bv_and = walk_and
+  
     walk_bv_or = walk_or
     walk_bv_not = walk_not
     walk_bv_add = walk_plus

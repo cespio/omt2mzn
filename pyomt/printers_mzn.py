@@ -23,7 +23,6 @@ from pyomt.walkers.generic import handles
 from pyomt.utils import quote
 from pyomt.constants import is_pyomt_fraction, is_pyomt_integer
 
-
 class HRPrinter(TreeWalker):
     """Performs serialization of a formula in a human-readable way.
 
@@ -34,6 +33,8 @@ class HRPrinter(TreeWalker):
         TreeWalker.__init__(self, env=env)
         self.stream = stream
         self.write = self.stream.write
+        self.fv=[]
+        self.stack_subf=[]
 
     def printer(self, f, threshold=None):
         """Performs the serialization of 'f'.
@@ -43,16 +44,52 @@ class HRPrinter(TreeWalker):
         printed instead. This is mainly used for debugging.
         """
         #print("Formula -> ",f)
-        self.walk(f, threshold=None) #optimathsat
+        init=0
+        self.stack_subf=[(f,"")]
+        while (self.stack_subf!=[]):
+            if init==0:
+                self.write("\nconstraint ( ")
+                (formula,_)=self.stack_subf.pop(0) 
+                self.walk(formula, threshold=None) #optimathsat
+                self.write(");\n")
+                init=1
+            else:
+                f,name=self.stack_subf.pop(0)
+                self.write("var bool:"+str(name)+";\n")
+                self.write("\nconstraint ( " + str(name) + " = ")
+                self.walk(f, threshold=None) #optimathsat
+                self.write(");\n")
 
     def walk_threshold(self, formula):
         self.write("...")
+
+    def walk_split(self,formula,ops):
+        self.write("(")
+        args = formula.args()
+        left = args[0]
+        right = args[1]
+        print(left.size())
+        print(right.size()) 
+        if left.size() >= 300:
+            bv_name="bv_"+str(len(self.fv))
+            self.fv.append(bv_name)
+            self.stack_subf.append((right,bv_name))
+            self.write(bv_name)
+        else:
+            yield left
+        if right.size() >= 300:
+            bv_name="bv_"+str(len(self.fv))
+            self.fv.append(bv_name)
+            self.stack_subf.append((left,bv_name))
+            self.write(bv_name)
+        else:
+            yield right
+        self.write(")")
 
     def walk_nary(self, formula, ops):
         self.write("(")
         args = formula.args()
         for s in args[:-1]:
-            print "args -> ",s,"type->",s.get_type()
             yield s
             self.write(ops)
         yield args[-1]
@@ -294,8 +331,8 @@ class HRPrinter(TreeWalker):
         yield formula.arg(0)
         self.write(")")
 
-    def walk_and(self, formula): return self.walk_nary(formula, " /\\ ")
-    def walk_or(self, formula): return self.walk_nary(formula, " \/ ")
+    def walk_and(self, formula): return self.walk_split(formula, " /\\ ")
+    def walk_or(self, formula): return self.walk_split(formula, " \/ ")
     def walk_plus(self, formula): return self.walk_nary(formula, " + ")
     def walk_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_div(self, formula): return self.walk_nary(formula, " / ")

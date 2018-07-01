@@ -347,3 +347,44 @@ def recursive_splitting(formula,file_out,serializer):
             else:
                 file_out.write("constraint "+serializer.serialize(sub_f)+";\n")
 '''                         
+
+
+def walk_and_subs(formula,serializer,file_out):
+    stack=[(formula,"")]
+    to_write=[]
+    count=0
+    while stack!=[]:
+        curr,name=stack.pop(0)
+        conj=conjunctive_partition(curr)
+        print("len",len(stack))
+        conj_len=0
+        for sub_f in conj:
+            conj_len+=1
+            print(get_formula_size(sub_f))
+            if get_formula_size(sub_f)<=10:
+                to_write.append(sub_f)
+            else:
+                var_temp="bool_sub_"+str(count)
+                count+=1
+                #new_var.append(var_temp)
+                file_out.write("var bool:"+var_temp+";\n")
+                to_write.append(var_temp)
+                stack.append((sub_f,var_temp))
+        print("LEN CONJ",conj_len)
+        '''
+        if name == "":
+            file_out.write("constraint( ")
+        else:
+            file_out.write("constraint( " + name + " = ")
+        for conj_el in to_write[:-1]:
+            #print(conj_el)
+            if type(conj_el) is not str:
+                file_out.write(serializer.serialize(conj_el)+" /\\ ")
+            else:
+                file_out.write(conj_el+" /\\ ")
+        if type(to_write[-1]) is not str:
+            file_out.write(serializer.serialize(to_write[-1])+");\n")
+        else:
+            file_out.write(to_write[-1]+");\n")
+        '''
+        to_write=[]

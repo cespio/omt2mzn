@@ -42,16 +42,11 @@ the different problem arises
 #TODO: extract per i bitvector
 #expression link #b010101 puo compararire in var,par,assert,assert-soft,
 '''
-from pyomt.smtlib.parser import *
-from pyomt.exceptions import *
-from pyomt.printers_mzn import *
-from pyomt.shortcuts import *
-from pyomt.rewritings import *
-from pyomt.oracles import *
-from pyomt.simplifier import *
-import pyomt
+from pyomt.smtlib.parser import SmtLib20Parser
+from pyomt.printers_mzn import HRSerializer
 import sys
 import re
+import os
 
 
 class WrongNumbArgs(StandardError):
@@ -67,7 +62,7 @@ def pre_proc(input_file):
     nl=[] #new_lines
     set_declaration_id=set() #variable declaration for assert soft, make sure it is unique
     for l in lines:
-        if l[0]!=";": #skipping comment line
+        if l[0]!=";" and not re.match(r"^%(.*)%$",l): #skipping comment line
             l=re.sub(r";.*","",l) #deleting comment in the same line
             if "assert-soft" in l:
                 if ":id " in l:
@@ -82,6 +77,8 @@ def pre_proc(input_file):
             #(_ bv[num] [size])
             l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)",r"(_ bv\2 \1)",l)
             l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)",r"(_ bv-\2 \1)",l)
+            if "(set-option" in l:
+                l=re.sub(":"," : ",l)
             nl.append(l)
             
     lines=nl
@@ -183,22 +180,33 @@ def write_list_variables(variables,file_out):
             type=variables[var][0]
             file_out.write("var "+str(type).lower()+":"+str(var)+";\n")
 
+
 def write_assertions(asserts_list,file_out,var_dict):
     #TODO: remove bvlen parameter -> we could have different length of bitvectos inside the same input
     #reference: https://github.com/hakank/hakank/blob/master/minizinc/bit_vector1.mzn
     #TODO: manage the sign
+    ''''
     bv_len_list=retrieve_bv_lengths(var_dict)
     for l in bv_len_list: #for each possible length declare a function of the same length
         file_out.write("function var int: toNumSigned"+str(l)+"(array[1.."+str(l)+"] of var bool: a) = -ceil(pow(2,"+str(bv_len)+"-1))*a[1]+"+"sum([ceil(pow(2,"+str(bv_len)+"-i)) * a[i]| i in 2.."+str(bv_len)+"]);\n")
         file_out.write("function var int: toNum"+str(l)+"(array[1.."+str(l)+"] of var bool: a) = sum([ceil(pow(2,"+str(bv_len)+"-i)) * a[i]| i in 1.."+str(bv_len)+"]);\n")
     print(get_formula_size(asserts_list[0][0]))
+    '''
     for el in asserts_list:
         if type(el) is list:
             el=el[0]
+        #el_cnf=cnf(el)
+        #list_free=el_cnf.get_free_variables()
+        #for fv in [ite for ite in list_free if "FV" in str(ite)]:
+        #    file_out.write("var bool :"+str(fv)+";\n") 
         serializer=HRSerializer()
+        serializer.serialize(el)
+        #file_out.write("constraint "+serializer.serialize(el)+";\n")
+        '''
         gen_ret=conjunctive_partition(el)
         for sub_f in gen_ret:
             file_out.write("constraint "+serializer.serialize(sub_f)+";\n")
+        '''
        
         #ris=serializer.serialize(el)
         #file_out.write("constraint "+ris+";\n")
@@ -419,12 +427,15 @@ def write_stack(stack,out_file):
     flat_stack=[item for l in stack for item in l] #considering the case to unroll the  stack
     var_dict={}
     asserts_list=[]
+    define_fun_list={}
     asserts_soft_list=[]
     commands_list=[] #maximize/minimize
     set_priority_option="box" #default value for the case where no option is specified, look for the last one in case
     for el in flat_stack:
         if el.name=='declare-fun' and len(el.args)==1: #constant condition
             var_dict[str(el.args[0])]=[el.args[0].get_type()] #rescue all the variable type
+        elif el.name=='define-fun' and len(el.args)==2: #treat them as constraint
+            define_fun_list[str(el.args[0])]=[el.args[1:]] #empty,type,expression
         elif el.name=='assert':
             asserts_list.append(el.args)
         elif el.name=='assert-soft':
@@ -483,12 +494,19 @@ def startParsing(input_file,out_file):
     #get_script_fnname execute the script using a file as source.
     new_input_f = pre_proc(input_file)
     script = parser.get_script_fname(new_input_f)
-    print("Parsing form pyomt is complete")
+    #print("Parsing form pyomt is complete")
     commands = script.commands #getting the list of commands (set-option,set-logic,declaration,assert,command)
-    for cmd in commands: #print the list of parsed commands
-        print cmd
+    #gsf=script.get_strict_formula()
+    #print(gsf)
+    #print ("OK")
+    #for cmd in commands: #print the list of parsed commands
+        #print cmd.name
+        #if cmd.name == "define-fun":
+        #    print cmd.
+        #print cmd.args_inner
         
     parse_stack(commands,out_file) #calling the main function
+    os.remove(new_input_f)
   
 if __name__ == "__main__":
     if len(sys.argv)!=3:
