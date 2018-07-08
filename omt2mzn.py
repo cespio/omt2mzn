@@ -1,49 +1,21 @@
 '''
 Francesco Contaldo 2018 
-A python parser omt2mnz
-
-Linear Arithmetic (Integer & Real) | QF_LIA QF_LRA
-Non Linear Arithmetic  (Integer & Real) | QF_NIA QF_NRA
-BitVector | QF_BV
-
-Minisearch solo per int e non real
-
-- BitVector in boolean
-- #self.walk(f, threshold=9999999999999999999) printers.py l45- 
-
-Keeping the original type of the variables can be done
-the different problem arises
-1]What happen in lexicographic order? float/int can't be done -> also only float can be done
-2]type of the assert soft variables -> should be deduced from its weight [look up at each weight function]
-3]type of the variables to be optimized [the one related to minimize/maximize] -> infer the type of the expression
-    keeping in the consideration the transformation that have been taken during the preprocessing
-4]take into consideration also the int2float, float2int
-
-    
-    Here perform the variables typechecking -> before writing
-    1] variables declaration
-    2] assert soft
-    3] variable to optimazie, considerare l'espressione e in caso metterla float
-    var_dict=add_id_variables(commands_list,var_dict,were_int)
-    var_dict=adjust_type_var(var_dict,were_int)
-    var_dict=adjust_assert_soft_var(var_dict,asserts_soft_list,were_int)
-
-
+A python parser omt2mzn
 #TODO: parte di asset-soft BV, passing her variables_dict.keys()
 #TODO: parsing con minimize/maximize sui bitvector poi funzione lexicographic
 #TODO: risolvere la questione di bitvector per le operazioni con il segno
-#TODO: chiamre il toNum corretto a seconda della lunghezza
-#TODO: BV o SBV
 #TODO: completare il parsing
 #TODO: inside the parser i first try to parse in SBV then BV
-#TODO: define-fun come parametro viene esploso 
-#TODO: remmove all par
-#TODO:! Risolvere problema di minizinc di memory exhausted, poi risolvere problema di bv
-#TODO: extract per i bitvector
+#TODO: manage the sign
 #expression link #b010101 puo compararire in var,par,assert,assert-soft,
+
+function array[int] of var bool : sumBV(array[1..4] of var bool: b, array[1..4] of var bool: a) = 
+              [(a[i] xor b[i]) xor (a[i+1] /\ b[i+1]) | i in reverse(1..3)] ++ [a[4] xor b[4]];                   
+
 '''
 from pyomt.smtlib.parser import SmtLib20Parser
 from pyomt.printers_mzn import HRSerializer
+from pyomt.environment import get_env
 import sys
 import re
 import os
@@ -51,38 +23,35 @@ import os
 
 class WrongNumbArgs(StandardError):
     pass
-class NoLogicDefined(StandardError): #TODO:no more used
-    pass 
-class BVtoLexicographic(StandardError): #TODO:no more used
-    pass
 
 def pre_proc(input_file):
+    '''
+        Creating a temporary file where to apply some syntax changes to the input file and introducing
+        varialbes for the soft assertions
+    '''
     lines=open(input_file).readlines()
     temp_file=open(input_file+"_temp","w")
-    nl=[] #new_lines
-    set_declaration_id=set() #variable declaration for assert soft, make sure it is unique
+    new_lines=[]                                        #new_lines
+    set_declaration_id=set()                            #variable declarations for soft asserts, make sure they are unique
     for l in lines:
-        if l[0]!=";" and not re.match(r"^%(.*)%$",l): #skipping comment line
-            l=re.sub(r";.*","",l) #deleting comment in the same line
+        if l[0]!=";" and not re.match(r"^%(.*)%$",l):   #skipping comments line
+            l=re.sub(r";.*","",l)                       #deleting comments in the same line
             if "assert-soft" in l:
                 if ":id " in l:
                     new_var = l.split(":id")[-1].strip().replace(")","")
                 else:
                     new_var = "I"
                 if new_var not in set_declaration_id:
-                    nl.append("\n;declaration of additional variable for assert-soft\n")
-                    nl.append("\n(declare-fun "+new_var+" () Real)\n")
+                    new_lines.append("\n;declaration of additional variable for assert-soft\n")
+                    new_lines.append("\n(declare-fun "+new_var+" () Real)\n")
                     set_declaration_id.add(new_var)
-            #bv operations
-            #(_ bv[num] [size])
-            l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)",r"(_ bv\2 \1)",l)
+            l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) ([0-9]+)\)",r"(_ bv\2 \1)",l)   #(_ bv[num] [size])
             l=re.sub(r"\(\(\_ to\_bv ([0-9]+)\) \(- ([0-9]+)\)\)",r"(_ bv-\2 \1)",l)
             if "(set-option" in l:
                 l=re.sub(":"," : ",l)
-            nl.append(l)
+            new_lines.append(l)
             
-    lines=nl
-    for l in nl:
+    for l in new_lines:
         l2=l.replace("(","( ").replace(")"," )")
         temp_file.write(l2)
     temp_file.close()
@@ -90,12 +59,12 @@ def pre_proc(input_file):
 
 def modify_type_assert_soft(asserts_soft_list,var_dict):
     '''
-        The variable here as been declared automatically Real, then
-        it is necessary to check all its expression and try to understand its type
+        The variable here as been declared automatically Real(float), then
+        it is necessary to infer from all the weights its real type
     '''
     dict_type={}
     for assert_exp in asserts_soft_list:
-        #get id and type
+        #assert_exp [expression(Fnode),assert_soft_id]
         if assert_exp[1]==1:
             current_type="Int"
         else:
@@ -116,8 +85,8 @@ def modify_type_assert_soft(asserts_soft_list,var_dict):
 
 def add_id_variables_opt(commands_list,var_dict):
     '''
-    Adding the variable related to the id of the maximization and minimization
-    and check if it eventually has not been declared yet.
+        Adding the variable related to the id of the maximization and minimization
+        and check if it eventually has not been declared yet.
     '''
     id_c=0
     for (name,args) in commands_list:
@@ -135,26 +104,10 @@ def add_id_variables_opt(commands_list,var_dict):
                 var_dict[var_id_name]=[expression_type]
     return var_dict
 
-def ifBV(string):
-    bv_search_l=re.findall(r"([0-9]+)_([0-9])+",string) #anche da qui posso ricavarmi la lenght
-    if len(bv_search_l)>0:
-        for (bv_value_match,bv_len_int) in bv_search_l:
-            bv_value=int(bv_value_match)
-            bv_len_int=int(bv_len_int)
-            if bv_value>pow(2,bv_len_int-1):
-                bv_value-=pow(2,bv_len_int)
-            string = re.sub(""+bv_value_match+"_[0-9]+",str(bv_value),string)  
-    bv_search_l2=re.findall(r"#b([01]+)",string)
-    #print(bv_search_l)
-    #print(bv_search_l2)
-    if len(bv_search_l2)>0:
-        for match in bv_search_l2:
-            x=int(match,2)    
-            int_value=x - (1 << len(match))  
-            string = re.sub("#b"+match,str(int_value),string) 
-    return (len(bv_search_l2)+len(bv_search_l))>0,string
-
 def retrieve_bv_lengths(var_dict):
+    '''
+        Rescue all the lenghts related to all the BV variables
+    '''
     ret_list=[]
     for var in var_dict.keys():
         bv_search=re.search(r"BV{([0-9]+)}",str(var_dict[var][0]))
@@ -164,11 +117,12 @@ def retrieve_bv_lengths(var_dict):
     return ret_list
 
 def write_list_variables(variables,file_out):
+    '''
+        Writes list of the variables
+    '''
     bv_len=0
     for var in variables.keys():
-        '''
-        In minizinc if no domain is specified there can be problems with the solver like g12
-        '''
+        #In minizinc if no domain is specified there can be problems with the solver like g12
         bv_search=re.search(r"BV{([0-9]+)}",str(variables[var][0]))
         if bv_search:
             bv_len,=bv_search.groups()
@@ -182,64 +136,57 @@ def write_list_variables(variables,file_out):
 
 
 def write_assertions(asserts_list,file_out,var_dict):
-    #TODO: remove bvlen parameter -> we could have different length of bitvectos inside the same input
-    #reference: https://github.com/hakank/hakank/blob/master/minizinc/bit_vector1.mzn
-    #TODO: manage the sign
-    ''''
-    bv_len_list=retrieve_bv_lengths(var_dict)
-    for l in bv_len_list: #for each possible length declare a function of the same length
-        file_out.write("function var int: toNumSigned"+str(l)+"(array[1.."+str(l)+"] of var bool: a) = -ceil(pow(2,"+str(bv_len)+"-1))*a[1]+"+"sum([ceil(pow(2,"+str(bv_len)+"-i)) * a[i]| i in 2.."+str(bv_len)+"]);\n")
-        file_out.write("function var int: toNum"+str(l)+"(array[1.."+str(l)+"] of var bool: a) = sum([ceil(pow(2,"+str(bv_len)+"-i)) * a[i]| i in 1.."+str(bv_len)+"]);\n")
-    print(get_formula_size(asserts_list[0][0]))
     '''
+        Write the list of assertion
+        reference: https://github.com/hakank/hakank/blob/master/minizinc/bit_vector1.mzn
+        modulo sum in minizinc
+        function array[int] of var bool : sumBV(array[1..4] of var bool: b, array[1..4] of var bool: a) = 
+                                                                                                 [(a[i] xor b[i]) xor (a[i+1] /\ b[i+1]) | i in reverse(1..3)] ++ [a[4] xor b[4]];
+    '''
+    
+    '''
+    bv_len_list=retrieve_bv_lengths(var_dict)
+    for bv_lenght in bv_len_list: #for each possible length declare a function of the same length
+        file_out.write("function var int: toNumSigned"+str(bv_lenght)+"(array[1.."+str(bv_lenght)+"] of var bool: a) = -ceil(pow(2,"+str(bv_lenght)+"-1))*a[1]+"+"sum([ceil(pow(2,"+str(bv_lenght)+"-i)) * a[i]| i in 2.."+str(bv_lenght)+"]);\n")
+        file_out.write("function var int: toNum"+str(bv_lenght)+"(array[1.."+str(bv_lenght)+"] of var bool: a) = sum([ceil(pow(2,"+str(bv_lenght)+"-i)) * a[i]| i in 1.."+str(bv_lenght)+"]);\n")
+        file_out.write("function array[int] of var bool: sumBV(array[1.."+str(bv_lenght)+"] of var bool: a, array[1.."+str(bv_lenght)+"] of var bool b) =\n   [(a[i] xor b[i]) xor (a[i+1] /\\ b[i+1]) | i in reverse(1.."+str(bv_lenght-1)+")] ++ [a["+str(bv_lenght)+"] /\\ b["+str(bv_lenght)+"]]; ")
+        function array[int] of var bool : extractBV(array[int] of var bool: a,int: i,int: j) =
+                                  [a[k] | k in i..j];
+    '''
+    file_out.write("\n%BitVector Function Definition\n")
+    file_out.write("\nfunction var int: toNumS (array[int] of var bool: a) = \n -ceil(pow(2,length(a)-1))*a[1]+sum([ceil(pow(2,length(a)-i)) * a[i]| i in 2..length(a)]);\n")
+    file_out.write("\nfunction var int: toNum (array[int] of var bool: a) = \n  sum([ceil(pow(2,length(a)-i)) * a[i]| i in 1..length(a)]);\n")
+    file_out.write("\nfunction array[int] of var bool: sumBV(array[int] of var bool: a, array[int] of var bool: b) =\n   [(a[i] xor b[i]) xor (a[i+1] /\\ b[i+1]) | i in reverse(1..length(a))] ++ [a[length(a)] /\\ b[length(b)]]; ")
+    file_out.write("\nfunction array[int] of var bool: extractBV(array[int] of var bool: a,int: i,int: j) = \n  [a[k] | k in i..j];\n\n")
     for el in asserts_list:
         if type(el) is list:
             el=el[0]
-        #el_cnf=cnf(el)
-        #list_free=el_cnf.get_free_variables()
-        #for fv in [ite for ite in list_free if "FV" in str(ite)]:
-        #    file_out.write("var bool :"+str(fv)+";\n") 
         serializer=HRSerializer()
-        serializer.serialize(el)
-        #file_out.write("constraint "+serializer.serialize(el)+";\n")
-        '''
-        gen_ret=conjunctive_partition(el)
-        for sub_f in gen_ret:
-            file_out.write("constraint "+serializer.serialize(sub_f)+";\n")
-        '''
-       
-        #ris=serializer.serialize(el)
-        #file_out.write("constraint "+ris+";\n")
-
-        '''
-        for bv_value_match in bv_search_l:
-            bv_value=int(bv_value_match)
-            if bv_value>pow(2,bv_len_int-1):
-                bv_value-=pow(2,bv_len_int)
-            assert_str = re.sub(""+bv_value_match+"_[0-9]+",str(bv_value),assert_str) #numbers BV 
-        '''
-        '''
-        if len(bv_len_list)!=0:
-            for var in var_dict: #TODO:rivedi condizione
-                    bv_search=re.search(r"BV{([0-9]+)}",str(var_dict[var][0]))
-                    if bv_search:
-                        assert_str=re.sub(r"("+str(var)+")",r"toNum(\1)",assert_str)    
-        '''
-
+        file_out.write("constraint ("+serializer.serialize(el)+");\n")
         
 def write_assertions_soft(asserts_soft_list,file_out):
-    #catch all the ones with the same id, then construct the constraint for the cost, name of variable equal to the id
-    set_cost_variables = set([l[-1] for l in asserts_soft_list]) #one variable for each of them
-    var_index = {name:0 for name in set_cost_variables}
+    '''
+        Writing the soft assertions list
+        for each group of assertion with the same id add its related group of constraint
+        (assert-soft a :weight expr1 :id goal)
+        (assert-soft b :weight expr2 :id goal)
+        -----
+        (constraint bv_goal_1=a)
+        (constraint bv_goal_2=b)
+        (constraint bv_goal = not(a)*expr1 + not(b)*expr2)
+    '''
+
+    cost_variables_set = set([l[-1] for l in asserts_soft_list]) #one variable for each of them
+    var_index = {name:0 for name in cost_variables_set}
     var_weight = {}
     for el in asserts_soft_list:
         file_out.write("var bool:"+el[-1]+"_"+str(var_index[el[-1]])+";\n")
         serializer=HRSerializer()
-        ris=serializer.serialize(el[0])
+        ris=serializer.serialize(el)
         file_out.write("constraint ("+el[-1]+"_"+str(var_index[el[-1]])+"="+ris+");\n")
         var_weight[el[-1]+"_"+str(var_index[el[-1]])]=el[1]
         var_index[el[-1]]+=1
-    for cost in set_cost_variables:
+    for cost in cost_variables_set:
         file_out.write("constraint ("+cost+"=")
         str_ap=[]
         for k in var_weight:
@@ -257,53 +204,107 @@ def write_commands_lex(commands_list,var_dict,file_out):
     var_list=[]
     var_list_type=set() #if just one type rescued from the maximize,otherwise use to2float
     flag_change=0
+    mgr = get_env()._formula_manager
+    serializer=HRSerializer()
     for (name,args) in commands_list: #only maximize or minimize -> manage the lower and the upper
         args_inner=args[1]
         index=args_inner.index(":id") #taking the id value -> equal to the variable
-        new_var=args_inner[index+1]
-        var_list_type.add(var_dict[new_var][0]) 
-        var_list.append(new_var)
-    if len(var_list_type)==0:
-        type=var_list_type.pop()
+        opt_var=args_inner[index+1]
+        var_list_type.add(var_dict[opt_var][0]) 
+        var_list.append(opt_var)
+    if len(var_list_type)==1:
+        final_type=var_list_type.pop()
+        if "BV" in str(final_type):
+            final_type="int"
+    elif len(var_list_type)==2 and "int" in var_list and "BV" in var_list_type:
+        final_type="int"
     else:
-        type="float"
-        #add new_variable_to change their type
-        var_list2=[]
+        final_type="float"
+        var_list2=[] #add opt_variables to change their type
         flag_change=1
         for var_name in var_list:
-            if str(var_dict[var_name][0])=="Int" or str(var_dict[var_name][0])=="int":
-                new_var_name=var_name+"_f"
-                file_out.write("var float: "+new_var_name+";\n")
-                var_list2.append(new_var_name)
+            type_to_check = str(var_dict[var_name][0])
+            if type_to_check=="Int" or type_to_check=="int" or "BV" in type_to_check:
+                opt_var_name=var_name+"_f"
+                file_out.write("var float: "+opt_var_name+";\n")
+                var_list2.append(opt_var_name)
             else:
-                var_list2.append(var_name)
-                #file_out.write("constraint("+new_var_name+"=int2float("+var_name+"));\n")
+                var_list2.append(var_name)             
         var_list=var_list2
+
     for (name,args) in commands_list: #only maximize or minimize -> manage the lower and the upper
         upper=None
         lower=None
         args_inner=args[1]
         index=args_inner.index(":id") #taking the id value -> equal to the variable
-        new_var=args_inner[index+1]
+        opt_var=args_inner[index+1]
         if ":upper" in args_inner:
             index=args_inner.index(":upper")
-            upper=args_inner[index+1]
+            upper=args_inner[index+1] #Fnode
         if ":lower" in args:
             index=args_inner.index(":lower")
-            lower=args_inner[index+1]
-        #TODO:Aggiungere casisistica bv -> vedi altro file
-        if flag_change and new_var+"_f" in var_list:
-                file_out.write("constraint("+new_var+"_f=int2float("+var_name+"));\n")
-        if name=="maximize":
-            file_out.write("constraint ("+new_var+"=-("+str(args[0])+"));\n")
-        else:
-            file_out.write("constraint ("+new_var+"="+str(args[0])+");\n")
+            lower=args_inner[index+1] #Fnode
+        try:
+            signed=args_inner.index(":signed") 
+        except ValueError:
+            signed=-1
+        
+        objective_arg = args[0]
+        if "BV" in var_dict[opt_var][0]: #devo creare una variabile int per il toNum
+            file_out.write("var int: "+opt_var+"_BV2INT"+";\n") #TODO: fare il cambio per il lex int no float
+            opt_symbol_int = mgr._create_symbol(opt_var+"_BV2INT",typename=types.INT) 
+            opt_symbol_bv = mgr._create_symbol(opt_var,var_dict[opt_var][0])
+            assignment_bv = (opt_symbol_bv,objective_arg)
+            assignment_toNum = mgr.Equals(opt_symbol_int,opt_symbol_bv)
+            file_out.write("constraint ("+serializer.serialize(assignment+");\n")) #bv = objective in bv
+            str_to_write = serializer.serialize(assignment_toNum)
+            if signed == -1:
+                str_to_write = re.replace(r"(.*) = (.*)",r"\1 = toNum(\2)",str_to_write)
+            else:
+                str_to_write = re.replace(r"(.*) = (.*)",r"\1 = toNumS(\2)",str_to_write)
+            if name == "maximize":
+                str_to_write = re.replace(r"(.*) = (.*)",r"\1 = -(\2)",str_to_write)
+                file_out.write("constraint ("+str_to_write+");\n")
+            else:
+                file_out.write("constraint ("+str_to_write+");\n") # bv2int = bv 
+            if flag_change and opt_var+"_f" in var_list:
+                file_out.write("constraint("+opt_var+"_f=int2float("+opt_var+"_BV2INT));\n")
+            else:
+                index_optvarBV=var_list.index(opt_var)
+                var_list.remove(opt_var)
+                var_list.insert(index_optvarBV,opt_var+"_BV2INT")
+        else: 
+            opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
+            if name=="maximize":
+                objective_arg_neg = mgr.Minus(mgr.Int(0),objective_arg)
+                assignment = mgr.Equals(opt_symbol,objective_arg_neg)
+            else:
+                assignment = mgr.Equals(opt_symbol,objective_arg)
+            file_out.write("constraint ("+serializer.serialize(assignment+");\n"))
+            if flag_change and opt_var+"_f" in var_list:
+                    file_out.write("constraint("+opt_var+"_f=int2float("+opt_var+"));\n")
+
+
         if upper is not None:
-            file_out.write("constraint ("+new_var+"<="+upper+");\n")
+            if "BV" in str(upper.get_type()):
+                if signed>=0:
+                    less_than = mgr.BVSLE(opt_symbol,upper)
+                else:
+                    less_than = mgr.BVULE(opt_symbol,upper)
+            else:
+                less_than = mgr.LE(opt_symbol,upper)
+            file_out.write("constraint ("+serializer.serialize(less_than)+");\n")
         if lower is not None:
-            file_out.write("constraint ("+new_var+">="+lower+");\n")
+            if "BV" in str(lower.get_type()):
+                if signed>=0:
+                    less_than = mgr.BVSLE(lower,opt_symbol)
+                else:
+                    less_than = mgr.BVULE(lower,opt_symbol)
+            else:
+                less_than = mgr.LE(lower,opt_symbol)
+            file_out.write("constraint ("+serializer.serialize(less_than)+");\n")
     
-    file_out.write("array[int] of var "+type+": obj_array;\n")  #TODO: modify to the type
+    file_out.write("array[int] of var "+final_type+": obj_array;\n")
     file_out.write("obj_array=[")
     file_out.write(var_list[0])
     for el in var_list[1:]:
@@ -324,7 +325,7 @@ function ann : minimize_lex_pers(array[int] of var """+type+""" : objs) =
 
 def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_file):
     '''
-        for each function to maximize or to minize create a new file,
+        For each function to maximize or to minize create a new file,
         keep the assignement to the optimization variables on all the files but not the upper
         and lower constraints
     '''
@@ -332,38 +333,52 @@ def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_fi
     common_lines=[]
     unique_lower=[]
     unique_upper=[]
+    mgr = get_env()._formula_manager
+    serializer=HRSerializer()
+    signed = -1
     for (name,args) in commands_list: #argslist [cost_function,[parameter]]
         upper=None
         lower=None
         args_inner=args[1]
         index=args_inner.index(":id")
-        new_var=args_inner[index+1]
+        opt_var=args_inner[index+1] #temp variable (d'appoggio) to maximize or minimize
+        objective_arg = args[0] #FNODE type -> parsed with get_expression
+        try:
+            signed=args_inner.index(":signed") 
+        except ValueError:
+            signed=-1
         #writing the maximize and the minimize
         if ":upper" in args_inner:
             index=args_inner.index(":upper")
-            upper=str(args_inner[index+1])
+            upper=args_inner[index+1]
         if ":lower" in args_inner:
             index=args_inner.index(":lower")
-            lower=str(args_inner[index+1])
-        common_lines.append("constraint ("+new_var+"="+str(args[0])+");\n")
-        #TODO: rivedere qua gestione di toNUM
+            lower=args_inner[index+1]
+        opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
+        assignment = mgr.Equals(opt_symbol,objective_arg)
+        common_lines.append("constraint ("+serializer.serialize(assignment)+");\n")
         if upper is not None:
-            #upper=re.sub(r"([0-9]+)_[0-9]+",r"\1",upper) #numbers
-            cond,upper=ifBV(upper)
-            if cond:  
-                unique_upper.append("constraint (toNum("+new_var+")<="+upper+");\n")
+            if "BV" in str(upper.get_type()):
+                if signed>=0:
+                    less_than = mgr.BVSLE(opt_symbol,upper)
+                else:
+                    less_than = mgr.BVULE(opt_symbol,upper)
             else:
-                unique_upper.append("constraint ("+new_var+"<="+upper+");\n")
-        else:
-            unique_lower.append("")
-        if lower is not None:
-            cond,lower=ifBV(lower)
-            if cond:
-                unique_lower.append("constraint (toNum("+new_var+")<="+lower+");\n")
-            else:
-                unique_lower.append("constraint ("+new_var+"<="+lower+");\n")
+                less_than = mgr.LE(opt_symbol,upper)
+            unique_upper.append("constraint ("+serializer.serialize(less_than)+");\n")
         else:
             unique_upper.append("")
+        if lower is not None:
+            if "BV" in str(lower.get_type()):
+                if signed>=0:
+                    less_than = mgr.BVSLE(lower,opt_symbol)
+                else:
+                    less_than = mgr.BVULE(lower,opt_symbol)
+            else:
+                less_than = mgr.LE(lower,opt_symbol)
+            unique_upper.append("constraint ("+serializer.serialize(less_than)+");\n")
+        else:
+            unique_lower.append("")
     for (name,args) in commands_list:
         i+=1
         file_out=open(out_file.replace(".mzn","_b"+str(i))+".mzn","w")
@@ -373,36 +388,31 @@ def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_fi
         write_assertions_soft(asserts_soft_list,file_out)
         for line in common_lines:
             file_out.write(line)
-        
         file_out.write(unique_lower[i-1]) #same list as command_list
         file_out.write(unique_upper[i-1]) #same list as command_list
         args_inner=args[1]
         index=args_inner.index(":id")
-        new_var=args_inner[index+1]
+        opt_var=args_inner[index+1]
         try:
             signed=args_inner.index(":signed") 
         except ValueError:
             signed=-1
         if name=='maximize': #qui si puo decidere facilmente se con segno o no, basta vedere se signed
-            bv_search=re.search(r"BV{([0-9]+)}",str(var_dict[new_var][0]))
-            if bv_search:
-                bv_len,=bv_search.groups()
+            if "BV" in str(var_dict[opt_var][0]):
                 if signed!=-1:
-                    file_out.write("solve maximize toNumSigned"+str(bv_len)+"("+new_var+");\n")
+                    file_out.write("solve maximize toNumS("+opt_var+");\n")
                 else:
-                    file_out.write("solve maximize toNum"+str(bv_len)+"("+new_var+");\n")
+                    file_out.write("solve maximize toNum("+opt_var+");\n")
             else:
-                file_out.write("solve maximize "+new_var+";\n")
+                file_out.write("solve maximize "+opt_var+";\n")
         else:
-            bv_search=re.search(r"BV{([0-9]+)}",str(var_dict[new_var][0]))
-            if bv_search:
-                bv_len,=bv_search.groups()
+            if "BV" in str(var_dict[opt_var][0]):
                 if signed!=-1:
-                    file_out.write("solve minimize toNumSigned"+str(bv_len)+"("+new_var+");\n")
+                    file_out.write("solve minimize toNumS("+opt_var+");\n")
                 else:
-                    file_out.write("solve minimize toNum"+str(bv_len)+"("+new_var+");\n")
+                    file_out.write("solve minimize toNum("+opt_var+");\n")
             else:
-                file_out.write("solve minimize "+new_var+";\n")
+                file_out.write("solve minimize "+opt_var+";\n")
         file_out.close()
 
 def write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,out_file):
@@ -416,26 +426,22 @@ def write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,out_fi
     file_out.close()
 
 
-
-
 def write_stack(stack,out_file):
     '''
-    type_var, detect int or real -> the purpose is to determine the value of the id_opt_Variable, 
-    one for each optimization command
-    to review in case of BV
+        Write the minizinc file related to each stacks
     '''
-    flat_stack=[item for l in stack for item in l] #considering the case to unroll the  stack
+    flat_stack=[item for l in stack for item in l]
     var_dict={}
     asserts_list=[]
     define_fun_list={}
     asserts_soft_list=[]
-    commands_list=[] #maximize/minimize
-    set_priority_option="box" #default value for the case where no option is specified, look for the last one in case
+    commands_list=[]             #maximize/minimize
+    set_priority_option="box"    #default value for the case where no option is specified, look for the last one in case
     for el in flat_stack:
-        if el.name=='declare-fun' and len(el.args)==1: #constant condition
-            var_dict[str(el.args[0])]=[el.args[0].get_type()] #rescue all the variable type
-        elif el.name=='define-fun' and len(el.args)==2: #treat them as constraint
-            define_fun_list[str(el.args[0])]=[el.args[1:]] #empty,type,expression
+        if el.name=='declare-fun' and len(el.args)==1: 
+            var_dict[str(el.args[0])]=[el.args[0].get_type()]   #rescue the variable type
+        elif el.name=='define-fun' and len(el.args)==2:         #treat them as constraint
+            define_fun_list[str(el.args[0])]=[el.args[1:]]      #empty,type,expression
         elif el.name=='assert':
             asserts_list.append(el.args)
         elif el.name=='assert-soft':
@@ -447,9 +453,9 @@ def write_stack(stack,out_file):
     var_dict=add_id_variables_opt(commands_list,var_dict)
     var_dict=modify_type_assert_soft(asserts_soft_list,var_dict) #TODO:review
     print("Finished to create the structures")
-    if set_priority_option == 'lex': #lexicographic order 
+    if set_priority_option == 'lex':    #lexicographic order 
         write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,out_file)
-    else: #box-  also the default one
+    else:                               #box-  also the default one
         write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_file)
 
 def parse_stack(commands,out_file):
@@ -481,7 +487,6 @@ def parse_stack(commands,out_file):
             for _ in range(npop):
                 current_stack.pop()
         elif cmd.name=='check-sat':  #condition to print out
-            print("calling write_stack")
             write_stack(current_stack,out_file.replace(".","_"+str(file_index)+"."))
             file_index+=1
         else:
@@ -489,23 +494,15 @@ def parse_stack(commands,out_file):
         
                
 def startParsing(input_file,out_file):
-    # We read the SMT-LIB Script by creating a Parser From here we can get the SMT-LIB script.
     parser = SmtLib20Parser() 
-    #get_script_fnname execute the script using a file as source.
     new_input_f = pre_proc(input_file)
     script = parser.get_script_fname(new_input_f)
-    #print("Parsing form pyomt is complete")
-    commands = script.commands #getting the list of commands (set-option,set-logic,declaration,assert,command)
-    #gsf=script.get_strict_formula()
-    #print(gsf)
-    #print ("OK")
-    #for cmd in commands: #print the list of parsed commands
-        #print cmd.name
-        #if cmd.name == "define-fun":
-        #    print cmd.
-        #print cmd.args_inner
-        
-    parse_stack(commands,out_file) #calling the main function
+    print("Parsing form pyomt is complete")
+    commands = script.commands      #getting the list of commands (set-option,set-logic,declaration,assert,command)        
+    for cmd in commands:
+        print cmd
+
+    parse_stack(commands,out_file)  #calling the main function
     os.remove(new_input_f)
   
 if __name__ == "__main__":

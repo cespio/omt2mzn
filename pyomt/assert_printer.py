@@ -16,7 +16,7 @@
 #   limitations under the License.
 #
 from six.moves import cStringIO
-import re
+
 import pyomt.operators as op
 from pyomt.walkers import TreeWalker
 from pyomt.walkers.generic import handles
@@ -43,10 +43,49 @@ class HRPrinter(TreeWalker):
         go. After reaching the thresholded value, "..." will be
         printed instead. This is mainly used for debugging.
         """
-        self.walk(f,threshold=None)
+        init=0
+        self.stack_subf=[(f,"")]
+        while (self.stack_subf!=[]):
+            if init==0:
+                self.write("constraint ( ")
+                (formula,_)=self.stack_subf.pop(0) 
+                self.walk(formula, threshold=None) #optimathsat
+                self.write(");")
+                init=1
+            else:
+                f,name=self.stack_subf.pop(0)
+                self.write("var bool:"+str(name)+";")
+                self.write("constraint ( " + str(name) + " = ")
+                self.walk(f, threshold=None) #optimathsat
+                self.write(");")
 
     def walk_threshold(self, formula):
         self.write("...")
+
+    def walk_split(self,formula,ops):
+        self.write("(")
+        args = formula.args()
+        left = args[0]
+        right = args[1]
+        print(left.size())
+        print(right.size()) 
+        if left.size() >= 300:
+            bv_name="bv_"+str(len(self.fv))
+            self.fv.append(bv_name)
+            self.stack_subf.append((right,bv_name))
+            self.write(bv_name)
+            return
+        else:
+            yield left
+        if right.size() >= 300:
+            bv_name="bv_"+str(len(self.fv))
+            self.fv.append(bv_name)
+            self.stack_subf.append((left,bv_name))
+            self.write(bv_name)
+            return 
+        else:
+            yield right
+        self.write(")")
 
     def walk_nary(self, formula, ops):
         self.write("(")
@@ -110,25 +149,20 @@ class HRPrinter(TreeWalker):
         else:
             self.write("false")
 
-    def walk_bv_constant(self, formula):  #--optimathsat
+    def walk_bv_constant(self, formula):
         # This is the simplest SMT-LIB way of printing the value of a BV
         # self.write("(_ bv%d %d)" % (formula.bv_width(),
         #                             formula.constant_value()))
-        #per ora assumo tutti i bv - unsigned
-        
-        bvsequence=str('{0:0'+str(formula.bv_width())+'b}').format(formula.constant_value())
-        bvsequence_comma = re.sub(r'([0-1])(?!$)', r'\1,',bvsequence)
-        bvsequence_comma_tf = bvsequence_comma.replace("0","false").replace("1","true")
-        self.write("["+bvsequence_comma_tf+"]")
+        self.write("%d_%d" % (formula.constant_value(),
+                              formula.bv_width()))
 
     def walk_algebraic_constant(self, formula):
         self.write(str(formula.constant_value()))
 
     def walk_bv_extract(self, formula):
-        self.write("extractBV(")
         yield formula.arg(0)
-        self.write(",%d,%d)" % (formula.bv_extract_start()+1,
-                                       formula.bv_extract_end()+1))
+        self.write("[%d:%d]" % (formula.bv_extract_start(),
+                                       formula.bv_extract_end()))
 
     def walk_bv_neg(self, formula):
         self.write("(- ")
@@ -159,40 +193,9 @@ class HRPrinter(TreeWalker):
         self.write(" SEXT ")
         self.write("%d)" % formula.bv_extend_step())
 
-    #TODO: are the addictions only binary?
-    def walk_bv_add(self,formula):
-        self.write("sumBV(")
-        yield formula.arg(0)
-        self.write(",")
-        yield formula.arg(1)
-        self.write(")")
     
-    def walk_bvlt(self,formula,ops):
-        self.write("toNum(")
-        yield formula.arg(0)
-        self.write(") ")
-        self.write(ops)
-        self.write("toNum(")
-        yield formula.arg(1)
-        self.write(")")
-    
-    def walk_signed_bvlt(self,formula,ops):
-        self.write("toNumS(")
-        yield formula.arg(0)
-        self.write(") ")
-        self.write(ops)
-        self.write("toNumS(")
-        yield formula.arg(1)
-        self.write(")")
-
-    def walk_bv_sle(self, formula):
-        self.write("toNumS(")
-        yield formula.arg(0)
-        self.write(",")
-        yield formula.arg(1)
-        self.write()
      
-    def walk_ite(self, formula): #--optimathsat
+    def walk_ite(self, formula): #optimathsat
         self.write("if ")
         yield formula.arg(0)
         self.write(" then  ")
@@ -329,8 +332,8 @@ class HRPrinter(TreeWalker):
         yield formula.arg(0)
         self.write(")")
 
-    def walk_and(self, formula): return self.walk_nary(formula, " /\\ ")
-    def walk_or(self, formula): return self.walk_nary(formula, " \/ ")
+    def walk_and(self, formula): return self.walk_split(formula, " /\\ ")
+    def walk_or(self, formula): return self.walk_split(formula, " \/ ")
     def walk_plus(self, formula): return self.walk_nary(formula, " + ")
     def walk_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_div(self, formula): return self.walk_nary(formula, " / ")
@@ -347,23 +350,20 @@ class HRPrinter(TreeWalker):
     def walk_bv_urem(self, formula): return self.walk_nary(formula, " u% ")
     def walk_bv_sdiv(self, formula): return self.walk_nary(formula, " s/ ")
     def walk_bv_srem(self, formula): return self.walk_nary(formula, " s% ")
-    def walk_bv_sle(self, formula): return self.walk_signed_bvlt(formula, " <= ")
-    def walk_bv_slt(self, formula): return self.walk_signed_bvlt(formula, " < ")
-    def walk_bv_ule(self, formula): return self.walk_bvlt(formula, " <= ")
-    def walk_bv_ult(self, formula): return self.walk_bvlt(formula, " < ")
+    def walk_bv_sle(self, formula): return self.walk_nary(formula, " s<= ")
+    def walk_bv_slt(self, formula): return self.walk_nary(formula, " s< ")
+    def walk_bv_ule(self, formula): return self.walk_nary(formula, " u<= ")
+    def walk_bv_ult(self, formula): return self.walk_nary(formula, " u< ")
     def walk_bv_lshl(self, formula): return self.walk_nary(formula, " << ")
     def walk_bv_lshr(self, formula): return self.walk_nary(formula, " >> ")
     def walk_bv_ashr(self, formula): return self.walk_nary(formula, " a>> ")
     def walk_bv_comp(self, formula): return self.walk_nary(formula, " bvcomp ")
-    
-    #walk_bv_add = walk_plus    
     walk_bv_and = walk_and
     walk_bv_or = walk_or
     walk_bv_not = walk_not
+    walk_bv_add = walk_plus
     walk_bv_mul = walk_times
     walk_bv_sub = walk_minus
-
-
 
 #EOC HRPrinter
 
@@ -391,10 +391,7 @@ class HRSerializer(object):
         p.printer(formula, threshold)
         res = buf.getvalue()
         buf.close()
-        return res  
-
-#EOC HRPrinter
-
+        return res
 
 
 class SmartPrinter(HRPrinter):

@@ -24,6 +24,7 @@ FormulaManager, Simplifier, HRSerializer, SimpleTypeChecker.
 import pyomt.simplifier
 #import pyomt.printers optimathsat
 import pyomt.printers_mzn
+import pyomt.printer_asrt_mzn
 import pyomt.substituter
 import pyomt.type_checker
 import pyomt.oracles
@@ -50,6 +51,7 @@ class Environment(object):
     SubstituterClass = pyomt.substituter.MGSubstituter
     #HRSerializerClass = pyomt.printers.HRSerializer optimathast
     HRSerializerClass = pyomt.printers_mzn.HRSerializer
+    #HRSerializerAssertMznClass = pyomt.printer_asrt_mzn.HRSerializerAssertMzn #--optimathsat
     QuantifierOracleClass = pyomt.oracles.QuantifierOracle
     TheoryOracleClass = pyomt.oracles.TheoryOracle
     FreeVarsOracleClass= pyomt.oracles.FreeVarsOracle
@@ -96,6 +98,12 @@ class Environment(object):
     @property
     def serializer(self):
         return self._serializer
+    
+    '''
+    @property
+    def _serializer_assert(self):
+        return self._serializer_assert
+    '''
 
     @property
     def substituter(self):
