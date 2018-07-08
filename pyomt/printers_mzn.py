@@ -49,12 +49,18 @@ class HRPrinter(TreeWalker):
         self.write("...")
 
     def walk_nary(self, formula, ops):
-        self.write("(")
         args = formula.args()
-        for s in args[:-1]:
-            yield s
-            self.write(ops)
-        yield args[-1]
+        if ops==" = " and len(args)==2 and "BV" in str(args[0].get_type()) and "BV" in str(args[1].get_type()):
+            self.write("bvcomp(")
+            yield args[0]
+            self.write(",")
+            yield args[1]
+        else:
+            self.write("(")
+            for s in args[:-1]:
+                yield s
+                self.write(ops)
+            yield args[-1]
         self.write(")")
 
     def walk_quantifier(self, op_symbol, var_sep, sep, formula):
@@ -184,13 +190,6 @@ class HRPrinter(TreeWalker):
         self.write("toNumS(")
         yield formula.arg(1)
         self.write(")")
-
-    def walk_bv_sle(self, formula):
-        self.write("toNumS(")
-        yield formula.arg(0)
-        self.write(",")
-        yield formula.arg(1)
-        self.write()
      
     def walk_ite(self, formula): #--optimathsat
         self.write("if ")
@@ -338,7 +337,7 @@ class HRPrinter(TreeWalker):
     def walk_iff(self, formula): return self.walk_nary(formula, " <-> ")
     def walk_implies(self, formula): return self.walk_nary(formula, " -> ")
     def walk_minus(self, formula): return self.walk_nary(formula, " - ")
-    def walk_equals(self, formula): return self.walk_nary(formula, " = ")
+    def walk_equals(self, formula): return self.walk_nary(formula, " = ") #optimathsat --> bvcomp
     def walk_le(self, formula): return self.walk_nary(formula, " <= ")
     def walk_lt(self, formula): return self.walk_nary(formula, " < ")
     def walk_bv_xor(self, formula): return self.walk_nary(formula, " xor ")

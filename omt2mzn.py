@@ -2,12 +2,10 @@
 Francesco Contaldo 2018 
 A python parser omt2mzn
 #TODO: parte di asset-soft BV, passing her variables_dict.keys()
-#TODO: parsing con minimize/maximize sui bitvector poi funzione lexicographic
 #TODO: risolvere la questione di bitvector per le operazioni con il segno
 #TODO: completare il parsing
 #TODO: inside the parser i first try to parse in SBV then BV
 #TODO: manage the sign
-#expression link #b010101 puo compararire in var,par,assert,assert-soft,
 
 function array[int] of var bool : sumBV(array[1..4] of var bool: b, array[1..4] of var bool: a) = 
               [(a[i] xor b[i]) xor (a[i+1] /\ b[i+1]) | i in reverse(1..3)] ++ [a[4] xor b[4]];                   
@@ -104,17 +102,15 @@ def add_id_variables_opt(commands_list,var_dict):
                 var_dict[var_id_name]=[expression_type]
     return var_dict
 
-def retrieve_bv_lengths(var_dict):
+def retrieve_presence_bv(var_dict):
     '''
         Rescue all the lenghts related to all the BV variables
     '''
-    ret_list=[]
     for var in var_dict.keys():
         bv_search=re.search(r"BV{([0-9]+)}",str(var_dict[var][0]))
         if bv_search:
-            bv_len,=bv_search.groups()
-            ret_list.append(bv_len)
-    return ret_list
+            return True
+    return False
 
 def write_list_variables(variables,file_out):
     '''
@@ -150,14 +146,23 @@ def write_assertions(asserts_list,file_out,var_dict):
         file_out.write("function var int: toNumSigned"+str(bv_lenght)+"(array[1.."+str(bv_lenght)+"] of var bool: a) = -ceil(pow(2,"+str(bv_lenght)+"-1))*a[1]+"+"sum([ceil(pow(2,"+str(bv_lenght)+"-i)) * a[i]| i in 2.."+str(bv_lenght)+"]);\n")
         file_out.write("function var int: toNum"+str(bv_lenght)+"(array[1.."+str(bv_lenght)+"] of var bool: a) = sum([ceil(pow(2,"+str(bv_lenght)+"-i)) * a[i]| i in 1.."+str(bv_lenght)+"]);\n")
         file_out.write("function array[int] of var bool: sumBV(array[1.."+str(bv_lenght)+"] of var bool: a, array[1.."+str(bv_lenght)+"] of var bool b) =\n   [(a[i] xor b[i]) xor (a[i+1] /\\ b[i+1]) | i in reverse(1.."+str(bv_lenght-1)+")] ++ [a["+str(bv_lenght)+"] /\\ b["+str(bv_lenght)+"]]; ")
-        function array[int] of var bool : extractBV(array[int] of var bool: a,int: i,int: j) =
+        function array[int] of var bool : bvcomp(array[int] of var bool: a,int: i,int: j) =
                                   [a[k] | k in i..j];
     '''
-    file_out.write("\n%BitVector Function Definition\n")
-    file_out.write("\nfunction var int: toNumS (array[int] of var bool: a) = \n -ceil(pow(2,length(a)-1))*a[1]+sum([ceil(pow(2,length(a)-i)) * a[i]| i in 2..length(a)]);\n")
-    file_out.write("\nfunction var int: toNum (array[int] of var bool: a) = \n  sum([ceil(pow(2,length(a)-i)) * a[i]| i in 1..length(a)]);\n")
-    file_out.write("\nfunction array[int] of var bool: sumBV(array[int] of var bool: a, array[int] of var bool: b) =\n   [(a[i] xor b[i]) xor (a[i+1] /\\ b[i+1]) | i in reverse(1..length(a))] ++ [a[length(a)] /\\ b[length(b)]]; ")
-    file_out.write("\nfunction array[int] of var bool: extractBV(array[int] of var bool: a,int: i,int: j) = \n  [a[k] | k in i..j];\n\n")
+    if retrieve_presence_bv(var_dict):
+        file_out.write("\n%BitVector Function Definition\n")
+        file_out.write("\nfunction var int: toNumS (array[int] of var bool: a) = \n -ceil(pow(2,length(a)-1))*a[1]+sum([ceil(pow(2,length(a)-i)) * a[i]| i in 2..length(a)]);\n")
+        file_out.write("\nfunction var int: toNum (array[int] of var bool: a) = \n  sum([ceil(pow(2,length(a)-i)) * a[i]| i in 1..length(a)]);\n")
+        file_out.write("\nfunction array[int] of var bool: sumBV(array[int] of var bool: a, array[int] of var bool: b) =\n   [(a[i] xor b[i]) xor (a[i+1] /\\ b[i+1]) | i in reverse(1..length(a)-1)] ++ [a[length(a)] /\\ b[length(b)]]; ")
+        file_out.write("\nfunction array[int] of var bool: extractBV(array[int] of var bool: a,int: i,int: j) = \n  [a[k] | k in i..j];\n\n")
+        file_out.write("""\npredicate bvcomp(array [$T] of var bool: x, array [$T] of var bool: y) =
+    let {
+        array [int] of var bool: xx = array1d(x), 
+        array [int] of var bool: yy = array1d(y),
+    } in (assert(index_sets_agree(x, y), "array index sets do not match", 
+        forall ( i in index_set(xx) ) ( 
+        not(xx[i] xor yy[i]) ))
+    );\n""")
     for el in asserts_list:
         if type(el) is list:
             el=el[0]
@@ -280,7 +285,7 @@ def write_commands_lex(commands_list,var_dict,file_out):
                 assignment = mgr.Equals(opt_symbol,objective_arg_neg)
             else:
                 assignment = mgr.Equals(opt_symbol,objective_arg)
-            file_out.write("constraint ("+serializer.serialize(assignment+");\n"))
+            file_out.write("constraint ("+serializer.serialize(assignment+");\n"))  
             if flag_change and opt_var+"_f" in var_list:
                     file_out.write("constraint("+opt_var+"_f=int2float("+opt_var+"));\n")
 
@@ -498,10 +503,7 @@ def startParsing(input_file,out_file):
     new_input_f = pre_proc(input_file)
     script = parser.get_script_fname(new_input_f)
     print("Parsing form pyomt is complete")
-    commands = script.commands      #getting the list of commands (set-option,set-logic,declaration,assert,command)        
-    for cmd in commands:
-        print cmd
-
+    commands = script.commands      #getting the list of commands (set-option,set-logic,declaration,assert,command)         
     parse_stack(commands,out_file)  #calling the main function
     os.remove(new_input_f)
   
