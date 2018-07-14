@@ -372,11 +372,6 @@ def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_fi
         if ":lower" in args_inner:
             index=args_inner.index(":lower")
             lower=args_inner[index+1]
-        print(var_dict)
-        for e in var_dict:
-            print(e)
-            print(var_dict[e])
-            print(type(var_dict[e][0]))
         if objective_arg.size() == 1: #name of a variable
             objective_arg=mgr._create_symbol(str(args[0]),typename=var_dict[str(args[0])][0])
         opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
@@ -538,7 +533,7 @@ def startParsing(input_file,out_file):
     #or cmd in commands:
     #   print cmd
     parse_stack(commands,out_file)  #calling the main function
-    #os.remove(new_input_f)
+    os.remove(new_input_f)
   
 if __name__ == "__main__":
     if len(sys.argv)!=3:
