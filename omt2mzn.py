@@ -5,15 +5,12 @@ A python parser omt2mzn
 #TODO: risolvere la questione di bitvector per le operazioni con il segno
 #TODO: completare il parsing
 #TODO: inside the parser i first try to parse in SBV then BV
-#TODO: manage the sign
-
-function array[int] of var bool : sumBV(array[1..4] of var bool: b, array[1..4] of var bool: a) = 
-              [(a[i] xor b[i]) xor (a[i+1] /\ b[i+1]) | i in reverse(1..3)] ++ [a[4] xor b[4]];                   
-
+#TODO: manage the sign                
 '''
 from pyomt.smtlib.parser import SmtLib20Parser
 from pyomt.printers_mzn import HRSerializer
 from pyomt.environment import get_env
+import pyomt.typing as tp
 import sys
 import re
 import os
@@ -61,23 +58,25 @@ def modify_type_assert_soft(asserts_soft_list,var_dict):
         it is necessary to infer from all the weights its real type
     '''
     dict_type={}
+    mgr = get_env()._formula_manager
     for assert_exp in asserts_soft_list:
         #assert_exp [expression(Fnode),assert_soft_id]
         if assert_exp[1]==1:
-            current_type="Int"
+            current_type=mgr.Int(1).get_type()
         else:
             current_type=assert_exp[1].get_type()
         if assert_exp[2] not in dict_type:
             dict_type[assert_exp[2]]=[]
-            dict_type[assert_exp[2]].append(str(current_type))
+            dict_type[assert_exp[2]].append(current_type)
         else:
-            dict_type[assert_exp[2]].append(str(current_type))
+            dict_type[assert_exp[2]].append(current_type)
+    print(dict_type)
     for k in dict_type:
         if len(set(dict_type[k]))==1:
             var_dict[k]=[dict_type[k][0]]
         else:
-            if "Real" in dict_type[k] and "Int" in dict_type[k]: #TODO: add the other cases
-                var_dict[k]=["Real"]
+            if "Real" in str(dict_type[k]) and "Int" in str(dict_type[k]): #TODO: add the other cases
+                var_dict[k]=[tp._RealType()]
     return var_dict
 
 
@@ -89,7 +88,12 @@ def add_id_variables_opt(commands_list,var_dict):
     id_c=0
     for (name,args) in commands_list:
         args_inner=args[1]
-        expression_type=args[0].get_type()
+        str_args0 = str(args[0])
+        print(args[0],type(args[0]))
+        if args[0].size()==1  and ")" not in str_args0 and "(" not in str_args0:
+            expression_type=var_dict[str(args[0])][0]
+        else:
+            expression_type=args[0].get_type() #considerare il caso in cui sia una singola variabile e prendere il valore da var_dict
         if ":id" not in args_inner:
             var_id_name="opt_var_"+str(id_c)
             args_inner+=[":id",var_id_name] #needed to be rescued then
@@ -187,7 +191,7 @@ def write_assertions_soft(asserts_soft_list,file_out):
     for el in asserts_soft_list:
         file_out.write("var bool:"+el[-1]+"_"+str(var_index[el[-1]])+";\n")
         serializer=HRSerializer()
-        ris=serializer.serialize(el)
+        ris=serializer.serialize(el[0])
         file_out.write("constraint ("+el[-1]+"_"+str(var_index[el[-1]])+"="+ris+");\n")
         var_weight[el[-1]+"_"+str(var_index[el[-1]])]=el[1]
         var_index[el[-1]]+=1
@@ -221,6 +225,10 @@ def write_commands_lex(commands_list,var_dict,file_out):
         final_type=var_list_type.pop()
         if "BV" in str(final_type):
             final_type="int"
+        elif "Real" == str(final_type):
+            final_type="float"
+        elif "Int" == str(final_type):
+            final_type="int"
     elif len(var_list_type)==2 and "int" in var_list and "BV" in var_list_type:
         final_type="int"
     else:
@@ -253,22 +261,24 @@ def write_commands_lex(commands_list,var_dict,file_out):
             signed=args_inner.index(":signed") 
         except ValueError:
             signed=-1
-        
+    
         objective_arg = args[0]
-        if "BV" in var_dict[opt_var][0]: #devo creare una variabile int per il toNum
+        if objective_arg.size() == 1: #name of a variable
+            objective_arg=mgr._create_symbol(str(args[0]),var_dict[str(args[0])][0])
+        if "BV" in str(var_dict[opt_var][0]): #devo creare una variabile int per il toNum
             file_out.write("var int: "+opt_var+"_BV2INT"+";\n") #TODO: fare il cambio per il lex int no float
-            opt_symbol_int = mgr._create_symbol(opt_var+"_BV2INT",typename=types.INT) 
+            opt_symbol_int = mgr._create_symbol(opt_var+"_BV2INT",typename=tp._IntType()) 
             opt_symbol_bv = mgr._create_symbol(opt_var,var_dict[opt_var][0])
             assignment_bv = (opt_symbol_bv,objective_arg)
             assignment_toNum = mgr.Equals(opt_symbol_int,opt_symbol_bv)
-            file_out.write("constraint ("+serializer.serialize(assignment+");\n")) #bv = objective in bv
+            file_out.write("constraint ("+serializer.serialize(assignment_bv)+");\n") #bv = objective in bv
             str_to_write = serializer.serialize(assignment_toNum)
             if signed == -1:
-                str_to_write = re.replace(r"(.*) = (.*)",r"\1 = toNum(\2)",str_to_write)
+                str_to_write = re.sub(r"(.*) = (.*)",r"\1 = toNum(\2)",str_to_write)
             else:
-                str_to_write = re.replace(r"(.*) = (.*)",r"\1 = toNumS(\2)",str_to_write)
+                str_to_write = re.sub(r"(.*) = (.*)",r"\1 = toNumS(\2)",str_to_write)
             if name == "maximize":
-                str_to_write = re.replace(r"(.*) = (.*)",r"\1 = -(\2)",str_to_write)
+                str_to_write = re.sub(r"(.*) = (.*)",r"\1 = -(\2)",str_to_write)
                 file_out.write("constraint ("+str_to_write+");\n")
             else:
                 file_out.write("constraint ("+str_to_write+");\n") # bv2int = bv 
@@ -285,7 +295,7 @@ def write_commands_lex(commands_list,var_dict,file_out):
                 assignment = mgr.Equals(opt_symbol,objective_arg_neg)
             else:
                 assignment = mgr.Equals(opt_symbol,objective_arg)
-            file_out.write("constraint ("+serializer.serialize(assignment+");\n"))  
+            file_out.write("constraint ("+serializer.serialize(assignment)+");\n")  
             if flag_change and opt_var+"_f" in var_list:
                     file_out.write("constraint("+opt_var+"_f=int2float("+opt_var+"));\n")
 
@@ -309,7 +319,7 @@ def write_commands_lex(commands_list,var_dict,file_out):
                 less_than = mgr.LE(lower,opt_symbol)
             file_out.write("constraint ("+serializer.serialize(less_than)+");\n")
     
-    file_out.write("array[int] of var "+final_type+": obj_array;\n")
+    file_out.write("array[int] of var "+str(final_type)+": obj_array;\n")
     file_out.write("obj_array=[")
     file_out.write(var_list[0])
     for el in var_list[1:]:
@@ -317,9 +327,12 @@ def write_commands_lex(commands_list,var_dict,file_out):
     file_out.write("];\n")
     file_out.write("%use minisearch\n")
     file_out.write("solve search minimize_lex_pers(obj_array);\n")
-    ##PAPER Implementation
+    
+
+
+    ##Minisearch Paper Implementation
     file_out.write("""\n
-function ann : minimize_lex_pers(array[int] of var """+type+""" : objs) =
+function ann : minimize_lex_pers(array[int] of var """+str(final_type)+""" : objs) =
     next () /\ commit () /\\
     repeat(
         scope(
@@ -359,6 +372,13 @@ def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_fi
         if ":lower" in args_inner:
             index=args_inner.index(":lower")
             lower=args_inner[index+1]
+        print(var_dict)
+        for e in var_dict:
+            print(e)
+            print(var_dict[e])
+            print(type(var_dict[e][0]))
+        if objective_arg.size() == 1: #name of a variable
+            objective_arg=mgr._create_symbol(str(args[0]),typename=var_dict[str(args[0])][0])
         opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
         assignment = mgr.Equals(opt_symbol,objective_arg)
         common_lines.append("constraint ("+serializer.serialize(assignment)+");\n")
@@ -388,9 +408,13 @@ def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_fi
         i+=1
         file_out=open(out_file.replace(".mzn","_b"+str(i))+".mzn","w")
         file_out.write("include \"globals.mzn\";\n")
+        print("writing variables")
         write_list_variables(var_dict,file_out)
+        print("writing assertions")
         write_assertions(asserts_list,file_out,var_dict)
+        print("writing soft")
         write_assertions_soft(asserts_soft_list,file_out)
+        print("writing maximize/minimize")
         for line in common_lines:
             file_out.write(line)
         file_out.write(unique_lower[i-1]) #same list as command_list
@@ -418,15 +442,22 @@ def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_fi
                     file_out.write("solve minimize toNum("+opt_var+");\n")
             else:
                 file_out.write("solve minimize "+opt_var+";\n")
+        
+        file_out.write("output [ \"opt_var =\",show("+opt_var+")]")
         file_out.close()
 
 def write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,out_file):
+    out_file=out_file.replace(".mzn","l.mzn")
     file_out=open(out_file,"w")
     file_out.write("include \"globals.mzn\";\n")
     file_out.write("include \"minisearch.mzn\";\n")
+    print("writing variables")
     write_list_variables(var_dict,file_out)
+    print("writing assertions")
     write_assertions(asserts_list,file_out,var_dict)
+    print("writing soft")
     write_assertions_soft(asserts_soft_list,file_out)
+    print("writing maximize/minimize")
     write_commands_lex(commands_list,var_dict,file_out)
     file_out.close()
 
@@ -451,13 +482,13 @@ def write_stack(stack,out_file):
             asserts_list.append(el.args)
         elif el.name=='assert-soft':
             asserts_soft_list.append(el.args)
-        elif el.name=='set-option' and el.args[0]==':opt.priority':  #keep the last one
-            set_priority_option=el.args[1]
+        elif el.name=='set-option' and el.args[1]=='opt.priority':  #keep the last one
+            set_priority_option=el.args[-1]
         elif el.name=='maximize' or el.name=='minimize':
             commands_list.append((el.name,el.args))
-    var_dict=add_id_variables_opt(commands_list,var_dict)
     var_dict=modify_type_assert_soft(asserts_soft_list,var_dict) #TODO:review
-    print("Finished to create the structures")
+    var_dict=add_id_variables_opt(commands_list,var_dict)
+    print("Finished to write the stack")
     if set_priority_option == 'lex':    #lexicographic order 
         write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,out_file)
     else:                               #box-  also the default one
@@ -492,7 +523,7 @@ def parse_stack(commands,out_file):
             for _ in range(npop):
                 current_stack.pop()
         elif cmd.name=='check-sat':  #condition to print out
-            write_stack(current_stack,out_file.replace(".","_"+str(file_index)+"."))
+            write_stack(current_stack,out_file.replace(".mzn","_"+str(file_index)+".mzn"))
             file_index+=1
         else:
             current_stack[-1].append(cmd)
@@ -503,9 +534,11 @@ def startParsing(input_file,out_file):
     new_input_f = pre_proc(input_file)
     script = parser.get_script_fname(new_input_f)
     print("Parsing form pyomt is complete")
-    commands = script.commands      #getting the list of commands (set-option,set-logic,declaration,assert,command)         
+    commands = script.commands      #getting the list of commands (set-option,set-logic,declaration,assert,command)           
+    #or cmd in commands:
+    #   print cmd
     parse_stack(commands,out_file)  #calling the main function
-    os.remove(new_input_f)
+    #os.remove(new_input_f)
   
 if __name__ == "__main__":
     if len(sys.argv)!=3:
