@@ -70,7 +70,6 @@ def modify_type_assert_soft(asserts_soft_list,var_dict):
             dict_type[assert_exp[2]].append(current_type)
         else:
             dict_type[assert_exp[2]].append(current_type)
-    print(dict_type)
     for k in dict_type:
         if len(set(dict_type[k]))==1:
             var_dict[k]=[dict_type[k][0]]
@@ -89,7 +88,6 @@ def add_id_variables_opt(commands_list,var_dict):
     for (name,args) in commands_list:
         args_inner=args[1]
         str_args0 = str(args[0])
-        print(args[0],type(args[0]))
         if args[0].size()==1  and ")" not in str_args0 and "(" not in str_args0:
             expression_type=var_dict[str(args[0])][0]
         else:
@@ -157,7 +155,7 @@ def write_assertions(asserts_list,file_out,var_dict):
         file_out.write("\n%BitVector Function Definition\n")
         file_out.write("\nfunction var int: toNumS (array[int] of var bool: a) = \n -ceil(pow(2,length(a)-1))*a[1]+sum([ceil(pow(2,length(a)-i)) * a[i]| i in 2..length(a)]);\n")
         file_out.write("\nfunction var int: toNum (array[int] of var bool: a) = \n  sum([ceil(pow(2,length(a)-i)) * a[i]| i in 1..length(a)]);\n")
-        file_out.write("\nfunction array[int] of var bool: sumBV(array[int] of var bool: a, array[int] of var bool: b) =\n   [(a[i] xor b[i]) xor (a[i+1] /\\ b[i+1]) | i in reverse(1..length(a)-1)] ++ [a[length(a)] /\\ b[length(b)]]; ")
+        file_out.write("\nfunction array[int] of var bool: sumBV(array[int] of var bool: a, array[int] of var bool: b) =\n   [(a[i] xor b[i]) xor (a[i+1] /\\ b[i+1]) | i in reverse(1..length(a)-1)] ++ [a[length(a)] xor b[length(b)]]; ")
         file_out.write("\nfunction array[int] of var bool: extractBV(array[int] of var bool: a,int: i,int: j) = \n  [a[k] | k in i..j];\n\n")
         file_out.write("""\npredicate bvcomp(array [$T] of var bool: x, array [$T] of var bool: y) =
     let {
@@ -396,7 +394,7 @@ def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_fi
                     less_than = mgr.BVULE(lower,opt_symbol)
             else:
                 less_than = mgr.LE(lower,opt_symbol)
-            unique_upper.append("constraint ("+serializer.serialize(less_than)+");\n")
+            unique_lower.append("constraint ("+serializer.serialize(less_than)+");\n")
         else:
             unique_lower.append("")
     for (name,args) in commands_list:
@@ -438,7 +436,7 @@ def write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_fi
             else:
                 file_out.write("solve minimize "+opt_var+";\n")
         
-        file_out.write("output [ \"opt_var =\",show("+opt_var+")]")
+        file_out.write("output [ \"opt_var = \",show("+opt_var+")]")
         file_out.close()
 
 def write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,out_file):
@@ -529,9 +527,7 @@ def startParsing(input_file,out_file):
     new_input_f = pre_proc(input_file)
     script = parser.get_script_fname(new_input_f)
     print("Parsing form pyomt is complete")
-    commands = script.commands      #getting the list of commands (set-option,set-logic,declaration,assert,command)           
-    #or cmd in commands:
-    #   print cmd
+    commands = script.commands      #getting the list of commands (set-option,set-logic,declaration,assert,command)    
     parse_stack(commands,out_file)  #calling the main function
     os.remove(new_input_f)
   
