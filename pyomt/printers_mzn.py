@@ -18,9 +18,11 @@
 from six.moves import cStringIO
 import re
 import pyomt.operators as op
-from pyomt.walkers import TreeWalker
+from pyomt.walkers import TreeWalker,DagWalker
 from pyomt.walkers.generic import handles
 from pyomt.utils import quote
+from pyomt.environment import get_env
+
 from pyomt.constants import is_pyomt_fraction, is_pyomt_integer
 
 class HRPrinter(TreeWalker):
@@ -29,14 +31,20 @@ class HRPrinter(TreeWalker):
     E.g., Implies(And(Symbol(x), Symbol(y)), Symbol(z))  ~>   '(x * y) -> z'
     """
 
-    def __init__(self, stream, env=None):
+    def __init__(self, stream, id, env=None):
         TreeWalker.__init__(self, env=env)
         self.stream = stream
         self.write = self.stream.write
         self.fv=[]
         self.stack_subf=[]
+        self.bv_sum=[]
+        self.id=id
+    
+    def getId(self):
+        #self.id+=1
+        return self.id
 
-    def printer(self, f, threshold=None):
+    def printer(self, f,threshold=None):
         """Performs the serialization of 'f'.
 
         Thresholding can be used to define how deep in the formula to
@@ -44,6 +52,8 @@ class HRPrinter(TreeWalker):
         printed instead. This is mainly used for debugging.
         """
         self.walk(f,threshold=None)
+        return self.bv_sum
+                
 
     def walk_threshold(self, formula):
         self.write("...")
@@ -51,7 +61,7 @@ class HRPrinter(TreeWalker):
     def walk_nary(self, formula, ops):
         args = formula.args()
         if ops==" = " and len(args)==2 and "BV" in str(args[0].get_type()) and "BV" in str(args[1].get_type()):
-            self.write("bvcomp(")
+            self.write("bveq(")
             yield args[0]
             self.write(",")
             yield args[1]
@@ -165,29 +175,47 @@ class HRPrinter(TreeWalker):
         self.write(" SEXT ")
         self.write("%d)" % formula.bv_extend_step())
 
-    #TODO: are the addictions only binary?
     def walk_bv_add(self,formula):
+        """ old sytle
         self.write("sumBV(")
         yield formula.arg(0)
         self.write(",")
         yield formula.arg(1)
         self.write(")")
+        """
+        self.id+=1
+        nameR = "R"+str(self.id)
+        self.write(nameR)
+        self.bv_sum.append((nameR,[formula.arg(0),formula.arg(1)]))
+
+
+
     
-    def walk_bvlt(self,formula,ops):
-        self.write("toNum(")
+    def walk_bvlt(self,formula):
+        self.write("lex_less(")
         yield formula.arg(0)
-        self.write(") ")
-        self.write(ops)
-        self.write("toNum(")
+        self.write(",")
         yield formula.arg(1)
         self.write(")")
     
-    def walk_signed_bvlt(self,formula,ops):
-        self.write("toNumS(")
+    def walk_bvle(self,formula):
+        self.write("lex_lesseq(")
         yield formula.arg(0)
-        self.write(") ")
-        self.write(ops)
-        self.write("toNumS(")
+        self.write(",")
+        yield formula.arg(1)
+        self.write(")")
+    
+    def walk_signed_bvlt(self,formula):
+        self.write("bvslt(")
+        yield formula.arg(0)
+        self.write(",")
+        yield formula.arg(1)
+        self.write(")")
+    
+    def walk_signed_bvle(self,formula):
+        self.write("bvsle(")
+        yield formula.arg(0)
+        self.write(",")
         yield formula.arg(1)
         self.write(")")
      
@@ -346,10 +374,10 @@ class HRPrinter(TreeWalker):
     def walk_bv_urem(self, formula): return self.walk_nary(formula, " u% ")
     def walk_bv_sdiv(self, formula): return self.walk_nary(formula, " s/ ")
     def walk_bv_srem(self, formula): return self.walk_nary(formula, " s% ")
-    def walk_bv_sle(self, formula): return self.walk_signed_bvlt(formula, " <= ")
-    def walk_bv_slt(self, formula): return self.walk_signed_bvlt(formula, " < ")
-    def walk_bv_ule(self, formula): return self.walk_bvlt(formula, " <= ")
-    def walk_bv_ult(self, formula): return self.walk_bvlt(formula, " < ")
+    def walk_bv_sle(self, formula): return self.walk_signed_bvle(formula)
+    def walk_bv_slt(self, formula): return self.walk_signed_bvlt(formula)
+    def walk_bv_ule(self, formula): return self.walk_bvle(formula)
+    def walk_bv_ult(self, formula): return self.walk_bvlt(formula)
     def walk_bv_lshl(self, formula): return self.walk_nary(formula, " << ")
     def walk_bv_lshr(self, formula): return self.walk_nary(formula, " >> ")
     def walk_bv_ashr(self, formula): return self.walk_nary(formula, " a>> ")
@@ -367,75 +395,540 @@ class HRPrinter(TreeWalker):
 #EOC HRPrinter
 
 
-class HRSerializer(object):
-    """Return the serialized version of the formula as a string."""
+class SmtDagPrinter(DagWalker):
+    
+    def __init__(self, stream, id,template="tmp_%d"):
+        DagWalker.__init__(self, invalidate_memoization=True)
+        self.stream = stream
+        self.write = self.stream.write
+        self.openings = 0
+        self.name_seed = 0
+        self.template = template
+        self.names = None
+        self.mgr = get_env().formula_manager
+        self.bv_sum=[]
+        self.id=id
 
-    PrinterClass = HRPrinter
+    def _push_with_children_to_stack(self, formula, **kwargs):
+        """Add children to the stack."""
+
+        # Deal with quantifiers
+        if formula.is_quantifier():
+            # 1. We invoke the relevant function (walk_exists or
+            #    walk_forall) to print the formula
+            fun = self.functions[formula.node_type()]
+            res = fun(formula, args=None, **kwargs)
+
+            # 2. We memoize the result
+            key = self._get_key(formula, **kwargs)
+            self.memoization[key] = res
+        else:
+            DagWalker._push_with_children_to_stack(self, formula, **kwargs)
+
+    def printer(self, f):
+        self.openings = 0
+        self.name_seed = 0
+        self.names = set(quote(x.symbol_name()) for x in f.get_free_variables())
+
+        key = self.walk(f)
+        self.write(key)
+        return self.bv_sum
+        #self.write(")")
+    
+    def getId(self):
+        #self.id+=1
+        return self.id
+
+    def _new_symbol(self):
+        while (self.template % self.name_seed) in self.names:
+            self.name_seed += 1
+        res = (self.template % self.name_seed)
+        self.name_seed += 1
+        return res
+
+    def walk_nary(self, formula, args, operator):
+        assert formula is not None
+        sym = self._new_symbol()
+        self.openings += 1
+        #self.write("(let ((%s (%s" % (sym, operator))
+        #self.write("(%s = ( " % (sym))
+        typeF=str(formula.get_type()).lower().replace("real","float")
+        if "bv" in typeF:
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
+            self.write(" let{ array[1..%s] of var bool : %s = (" % (size,sym))
+        else:
+            self.write(" let{ var %s : %s = ( " % (typeF,sym))
+        if operator=="bvadd":
+            self.id+=1
+            nameR = "R"+str(self.id)
+            self.write(nameR)
+            self.bv_sum.append((nameR,[formula.arg(0),formula.arg(1)]))
+            self.write(" )} in  ")
+        elif operator=="ite":
+            self.write(" if ")
+            self.write(args[0])
+            self.write(" then ")
+            self.write(args[1])
+            self.write(" else ")
+            self.write(args[2])
+            self.write(" endif ")
+            self.write(" )} in  ")
+        elif operator in ["lex_less","lex_lesseq","bvslt","bvsle"]:
+            self.write(" ")
+            self.write(operator)
+            self.write("(")
+            self.write(args[0])
+            self.write(",")
+            self.write(args[1])
+            self.write(")} in ")
+        elif len(args)==1 and operator=="not":
+            self.write(" ")
+            self.write(" not (")
+            self.write(args[0])
+            self.write(")")
+            self.write(" )} in  ")
+        else:
+            self.write(args[0])
+            for s in args[1:]:
+                self.write(" ")
+                self.write(operator)
+                self.write(" ")
+                self.write(s)
+            self.write(" )} in  ")
+        return sym
+
+    def walk_and(self, formula, args):
+        return self.walk_nary(formula, args, "/\\")
+
+    def walk_or(self, formula, args):
+        return self.walk_nary(formula, args, "\/")
+
+    def walk_not(self, formula, args):
+        return self.walk_nary(formula, args, "not")
+
+    def walk_implies(self, formula, args):
+        return self.walk_nary(formula, args, "->")
+
+    def walk_iff(self, formula, args):
+        return self.walk_nary(formula, args, "=")
+
+    def walk_plus(self, formula, args):
+        return self.walk_nary(formula, args, "+")
+
+    def walk_minus(self, formula, args):
+        return self.walk_nary(formula, args, "-")
+
+    def walk_times(self, formula, args):
+        return self.walk_nary(formula, args, "*")
+
+    def walk_equals(self, formula, args):
+        return self.walk_nary(formula, args, "=")
+
+    def walk_le(self, formula, args):
+        return self.walk_nary(formula, args, "<=")
+
+    def walk_lt(self, formula, args):
+        return self.walk_nary(formula, args, "<")
+
+    def walk_ite(self, formula, args):
+        return self.walk_nary(formula, args, "ite")
+
+    def walk_toreal(self, formula, args):
+        return self.walk_nary(formula, args, "to_real")
+
+    def walk_div(self, formula, args):
+        return self.walk_nary(formula, args, "/")
+
+    def walk_pow(self, formula, args):
+        return self.walk_nary(formula, args, "pow")
+
+    def walk_bv_and(self, formula, args):
+        return self.walk_nary(formula, args, "bvand")
+
+    def walk_bv_or(self, formula, args):
+        return self.walk_nary(formula, args, "bvor")
+
+    def walk_bv_not(self, formula, args):
+        return self.walk_nary(formula, args, "bvnot")
+
+    def walk_bv_xor(self, formula, args):
+        return self.walk_nary(formula, args, "bvxor")
+
+    def walk_bv_add(self, formula, args):
+        return self.walk_nary(formula, args, "bvadd")
+
+    def walk_bv_sub(self, formula, args):
+        return self.walk_nary(formula, args, "bvsub")
+
+    def walk_bv_neg(self, formula, args):
+        return self.walk_nary(formula, args, "bvneg")
+
+    def walk_bv_mul(self, formula, args):
+        return self.walk_nary(formula, args, "bvmul")
+
+    def walk_bv_udiv(self, formula, args):
+        return self.walk_nary(formula, args, "bvudiv")
+
+    def walk_bv_urem(self, formula, args):
+
+        return self.walk_nary(formula, args, "bvurem")
+    def walk_bv_lshl(self, formula, args):
+        return self.walk_nary(formula, args, "bvshl")
+
+    def walk_bv_lshr(self, formula, args):
+        return self.walk_nary(formula, args, "bvlshr")
+
+    def walk_bv_ult(self, formula, args):
+        return self.walk_nary(formula, args, "lex_less")
+
+    def walk_bv_ule(self, formula, args):
+        return self.walk_nary(formula, args, "lex_lesseq")
+
+    def walk_bv_slt(self, formula, args):
+        return self.walk_nary(formula, args, "bvlst")
+
+    def walk_bv_sle(self, formula, args):
+        return self.walk_nary(formula, args, "bvsle")
+
+    def walk_bv_concat(self, formula, args):
+        return self.walk_nary(formula, args, "concat")
+
+    def walk_bv_comp(self, formula, args):
+        return self.walk_nary(formula, args, "bvcomp")
+
+    def walk_bv_ashr(self, formula, args):
+        return self.walk_nary(formula, args, "bvashr")
+
+    def walk_bv_sdiv(self, formula, args):
+        return self.walk_nary(formula, args, "bvsdiv")
+
+    def walk_bv_srem(self, formula, args):
+        return self.walk_nary(formula, args, "bvsrem")
+
+    def walk_bv_tonatural(self, formula, args):
+        return self.walk_nary(formula, args, "bv2nat")
+
+    def walk_array_select(self, formula, args):
+        return self.walk_nary(formula, args, "select")
+
+    def walk_array_store(self, formula, args):
+        return self.walk_nary(formula, args, "store")
+
+    def walk_symbol(self, formula, **kwargs):
+        return quote(formula.symbol_name())
+
+    def walk_function(self, formula, args, **kwargs):
+        return self.walk_nary(formula, args, formula.function_name())
+
+    def walk_int_constant(self, formula, **kwargs):
+        if formula.constant_value() < 0:
+            return "(- " + str(-formula.constant_value()) + ")"
+        else:
+            return str(formula.constant_value())
+
+    def walk_real_constant(self, formula, **kwargs):
+        if formula.constant_value() < 0:
+            template = "(- %s)"
+        else:
+            template = "%s"
+
+        (n,d) = abs(formula.constant_value().numerator), \
+                    formula.constant_value().denominator
+        if d != 1:
+            return template % ( "(/ " + str(n) + " " + str(d) + ")" )
+        else:
+            return template % (str(n) + ".0")
+
+    def walk_bv_constant(self, formula, **kwargs):
+        '''
+        short_res = str(bin(formula.constant_value()))[2:]
+        if formula.constant_value() >= 0:
+            filler = "0"
+        else:
+            raise NotImplementedError
+        res = short_res.rjust(formula.bv_width(), filler)
+        '''
+        bvsequence=str('{0:0'+str(formula.bv_width())+'b}').format(formula.constant_value())
+        bvsequence_comma = re.sub(r'([0-1])(?!$)', r'\1,',bvsequence)
+        bvsequence_comma_tf = bvsequence_comma.replace("0","false").replace("1","true")
+        return "["+bvsequence_comma_tf+"]"
+        #return "#b" + res
+
+
+    def walk_bool_constant(self, formula, **kwargs):
+        if formula.constant_value():
+            return "true"
+        else:
+            return "false"
+
+    def walk_str_constant(self, formula, **kwargs):
+        return '"' + formula.constant_value() + '"'
+
+    def walk_forall(self, formula, args, **kwargs):
+        return self._walk_quantifier("forall", formula, args)
+
+    def walk_exists(self, formula, args, **kwargs):
+        return self._walk_quantifier("exists", formula, args)
+
+    def _walk_quantifier(self, operator, formula, args):
+        assert args is None
+        assert len(formula.quantifier_vars()) > 0
+        sym = self._new_symbol()
+        self.openings += 1
+
+        self.write("(let ((%s (%s (" % (sym, operator))
+
+        for s in formula.quantifier_vars():
+            self.write("(")
+            self.write(quote(s.symbol_name()))
+            self.write(" %s)" % s.symbol_type().as_smtlib(False))
+        self.write(") ")
+
+        subprinter = SmtDagPrinter(self.stream)
+        subprinter.printer(formula.arg(0))
+
+        self.write(")))")
+        return sym
+
+    def walk_bv_extract(self, formula, args, **kwargs):
+        """
+        self.write("extractBV(")
+        yield formula.arg(0)
+        self.write(",%d,%d)" % (formula.bv_extract_start()+1,
+                                       formula.bv_extract_end()+1))
+
+        let{ var %s : %s = ( 
+        """
+
+        assert formula is not None
+        sym = self._new_symbol()
+        self.openings += 1
+        self.write("let { array[1..%s] of var bool: %s = (" % (formula.bv_width, sym))
+        #self.write("(let ((%s ((_ extract %d %d)" % (sym,
+        #                                             formula.bv_extract_end(),
+        #
+        #                                             formula.bv_extract_start()))
+        self.write("extractBV(%s,%s,%s)" % (args[0],formula.bv_extract_start(),formula.bv_extract_end()))
+        self.write(" )} in ")
+        #for s in args:
+        #    self.write(" ")
+        #    self.write(s)
+        #self.write("))) ")
+        return sym
+
+    @handles(op.BV_SEXT, op.BV_ZEXT)
+    def walk_bv_extend(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        if formula.is_bv_zext():
+            extend_type = "zero_extend"
+        else:
+            assert formula.is_bv_sext()
+            extend_type = "sign_extend"
+
+        sym = self._new_symbol()
+        self.openings += 1
+        self.write("(let ((%s ((_ %s %d)" % (sym, extend_type,
+                                                formula.bv_extend_step()))
+        for s in args:
+            self.write(" ")
+            self.write(s)
+        self.write("))) ")
+        return sym
+
+    @handles(op.BV_ROR, op.BV_ROL)
+    def walk_bv_rotate(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        if formula.is_bv_ror():
+            rotate_type = "rotate_right"
+        else:
+            assert formula.is_bv_rol()
+            rotate_type = "rotate_left"
+
+        sym = self._new_symbol()
+        self.openings += 1
+        self.write("(let ((%s ((_ %s %d)" % (sym, rotate_type,
+                                             formula.bv_rotation_step()))
+        for s in args:
+            self.write(" ")
+            self.write(s)
+        self.write("))) ")
+        return sym
+
+    def walk_str_length(self, formula, args, **kwargs):
+        return "(str.len %s)" % args[0]
+
+    def walk_str_charat(self,formula, args,**kwargs):
+        return "( str.at %s %s )" % (args[0], args[1])
+
+    def walk_str_concat(self, formula, args, **kwargs):
+        sym = self._new_symbol()
+        self.openings += 1
+        self.write("(let ((%s (%s" % (sym, "str.++ " ))
+        for s in args:
+            self.write(" ")
+            self.write(s)
+        self.write("))) ")
+        return sym
+
+    def walk_str_contains(self,formula, args, **kwargs):
+        return "( str.contains %s %s)" % (args[0], args[1])
+
+    def walk_str_indexof(self,formula, args, **kwargs):
+        return "( str.indexof %s %s %s )" % (args[0], args[1], args[2])
+
+    def walk_str_replace(self,formula, args, **kwargs):
+        return "( str.replace %s %s %s )" % (args[0], args[1], args[2])
+
+    def walk_str_substr(self,formula, args,**kwargs):
+        return "( str.substr %s %s %s)" % (args[0], args[1], args[2])
+
+    def walk_str_prefixof(self,formula, args,**kwargs):
+        return "( str.prefixof %s %s )" % (args[0], args[1])
+
+    def walk_str_suffixof(self,formula, args, **kwargs):
+        return "( str.suffixof %s %s )" % (args[0], args[1])
+
+    def walk_str_to_int(self,formula, args, **kwargs):
+        return "( str.to.int %s )" % args[0]
+
+    def walk_int_to_str(self,formula, args, **kwargs):
+        return "( int.to.str %s )" % args[0]
+
+    def walk_array_value(self, formula, args, **kwargs):
+        sym = self._new_symbol()
+        self.openings += 1
+        self.write("(let ((%s " % sym)
+
+        for _ in xrange((len(args) - 1) // 2):
+            self.write("(store ")
+
+        self.write("((as const %s) " % formula.get_type().as_smtlib(False))
+        self.write(args[0])
+        self.write(")")
+
+        for i, k in enumerate(args[1::2]):
+            self.write(" ")
+            self.write(k)
+            self.write(" ")
+            self.write(args[2*i + 2])
+            self.write(")")
+        self.write("))")
+        return sym
+
+
+
+class MZNPrinter(object):
+    """Return the serialized version of the formula as a string."""
+       
+    
+    
 
     def __init__(self, environment=None):
         self.environment = environment
+        self.last_index=0
+        self.last_id=0
 
-    def serialize(self, formula, printer=None, threshold=None):
+    def serialize(self, formula,daggify=True,file_out=None):
         """Returns a string with the human-readable version of the formula.
 
         'printer' is the printer to call to perform the serialization.
         'threshold' is the thresholding value for the printing function.
         """
+        bv_sum=[]
         buf = cStringIO()
-        if printer is None:
-            p = self.PrinterClass(buf)
+        if daggify:
+            p = SmtDagPrinter(buf,self.last_id)
         else:
-            p = printer(buf)
-
-        p.printer(formula, threshold)
+            p = HRPrinter(buf,self.last_id)
+        bv_sum=p.printer(formula)
         res = buf.getvalue()
+        if file_out is None: 
+            return res
+        else:
+            bv_sum=self.print_bvsum_predicates(file_out,bv_sum)
+            file_out.write("constraint ("+res+");\n")
+            self.last_id=p.getId()
+            self.last_index=len(bv_sum)
         buf.close()
-        return res  
+        
 
-#EOC HRPrinter
+    def print_bvsum_predicates(self,file_out,bv_sum):
+        if len(bv_sum)>0:     
+            while True:
+                bv_sum_temp = bv_sum
+                start_size= len(bv_sum)
+                for el in bv_sum_temp:
+                    bv_sum=p.printer(el[1][0])
+                    if len(bv_sum)!=start_size: #ho inserito uno 
+                        #self.last_id+=1
+                        el[1][0] = "R"+str(p.getId()) #modifico l'ultimo
+                        start_size=len(bv_sum) #ho chiamato sul primo e ho aggiunto uno size+1
 
+                    bv_sum=p.printer(el[1][1])
+                    if len(bv_sum)!=start_size: #non ho fatto il primo if
+                        #self.last_id+=1
+                        el[1][1] = "R"+str(p.getId())
+                    
+                if len(bv_sum)==len(bv_sum_temp):
+                    break
+        count=1
+        last_used_size=None
+        if len(bv_sum)>0:
+            if "R" in str(bv_sum[0][1][0]) and "R" in str(bv_sum[0][1][1]):
+                bv_sum.append(bv_sum[0])
+                bv_sum.pop()
+        for el1 in bv_sum:
+            ris_var = el1[0]
+            add_1=el1[1][0]
+            add_2=el1[1][1]
+            size=None
+            if "R" not in str(add_1):
+                if add_1.is_bv_constant():
+                    size = add_1.bv_width()
+                else:
+                    tmp = str(add_1.get_type())
+                    size = re.sub(r"BV{([0-9]+)}",r"\1",tmp)
+                last_used_size=size
+            elif "R" not in str(add_2):
+                if add_2.is_bv_constant():
+                    size = add_2.bv_width()
+                else:
+                    tmp = str(add_2.get_type())
+                    size = re.sub(r"BV{([0-9]+)}",r"\1",tmp)
+                last_used_size=size
+            if size is None:
+                 size=last_used_size
+            index = ris_var.strip().split("R")[1]
+            cstr ="C"+str(index)
+            file_out.write("array [1.."+str(size)+"] of var bool: "+cstr+";\n" )
+            file_out.write("array [1.."+str(size)+"] of var bool: "+ris_var+";\n")
+            if "R" not in str(add_1):
+                if add_1.is_bv_constant():
+                    bvsequence=str('{0:0'+str(add_1.bv_width())+'b}').format(add_1.constant_value())
+                    bvsequence_comma = re.sub(r'([0-1])(?!$)', r'\1,',bvsequence)
+                    bvsequence_comma_tf = bvsequence_comma.replace("0","false").replace("1","true")
+                    add_1_tw="["+bvsequence_comma_tf+"]"
+                else:
+                    add_1_tw=add_1
+            else:
+                add_1_tw=add_1
+            if "R" not in str(add_2):
+                if add_2.is_bv_constant():
+                    bvsequence=str('{0:0'+str(add_2.bv_width())+'b}').format(add_2.constant_value())
+                    bvsequence_comma = re.sub(r'([0-1])(?!$)', r'\1,',bvsequence)
+                    bvsequence_comma_tf = bvsequence_comma.replace("0","false").replace("1","true")
+                    add_2_tw="["+bvsequence_comma_tf+"]"
+                else:
+                    add_2_tw=add_2
+            else:
+                add_2_tw=add_2
+            file_out.write("constraint ( sumBV("+str(add_1_tw)+","+str(add_2_tw)+","+cstr+","+ris_var+") );\n")
+            #declare variable for result
+            #declare variable for carry
+            #retrieve the size
+            count+=1
+        return bv_sum
+        
 
+#EOC MZNPrinter
 
-class SmartPrinter(HRPrinter):
-    """Better serialization allowing special printing of subformula.
-
-    The formula is serialized according to the format defined in the
-    HRPrinter. However, everytime a formula that is present in
-    'subs' is found, this is replaced.
-
-    E.g., subs  = {And(a,b): "ab"}
-
-    Everytime that the subformula And(a,b) is found, "ab" will be
-    printed instead of "a & b". This makes it possible to rename big
-    subformulae, and provide better human-readable representation.
-    """
-
-    def __init__(self, stream, subs=None):
-        HRPrinter.__init__(self, stream)
-        if subs is None:
-            self.subs = {}
-        else:
-            self.subs = subs
-
-    def printer(self, f, threshold=None):
-        self.walk(f, threshold=threshold)
-
-    @handles(op.ALL_TYPES)
-    def smart_walk(self, formula):
-        if formula in self.subs:
-            # Smarties contains a string.
-            # In the future, we could allow for arbitrary function calls
-            self.write(self.subs[formula])
-        else:
-            return HRPrinter.super(self, formula)
-
-# EOC SmartPrinter
-
-def smart_serialize(formula, subs=None, threshold=None):
-    """Creates and calls a SmartPrinter to perform smart serialization."""
-    buf = cStringIO()
-    p = SmartPrinter(buf, subs=subs)
-    p.printer(formula, threshold=threshold)
-    res = buf.getvalue()
-    buf.close()
-    return res

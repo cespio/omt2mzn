@@ -84,7 +84,6 @@ class DagWalker(Walker):
         2- Once all children have been processed, the result for the node
            is computed and memoized.
         """
-
         while self.stack:
             (was_expanded, formula) = self.stack.pop()
             if was_expanded:
