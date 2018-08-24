@@ -397,7 +397,7 @@ class HRPrinter(TreeWalker):
 
 class SmtDagPrinter(DagWalker):
     
-    def __init__(self, stream, id,template="tmp_%d"):
+    def __init__(self, stream, id,bv_dict={},template="tmp_%d"):
         DagWalker.__init__(self, invalidate_memoization=True)
         self.stream = stream
         self.write = self.stream.write
@@ -406,7 +406,7 @@ class SmtDagPrinter(DagWalker):
         self.template = template
         self.names = None
         self.mgr = get_env().formula_manager
-        self.bv_sum=[]
+        self.bv_sum=[] #Try to implement it as a dictionary
         self.id=id
 
     def _push_with_children_to_stack(self, formula, **kwargs):
@@ -537,7 +537,7 @@ class SmtDagPrinter(DagWalker):
         return self.walk_nary(formula, args, "to_real")
 
     def walk_div(self, formula, args):
-        return self.walk_nary(formula, args, "/")
+        return self.walk_nary(formula, args, "div")
 
     def walk_pow(self, formula, args):
         return self.walk_nary(formula, args, "pow")
@@ -621,12 +621,15 @@ class SmtDagPrinter(DagWalker):
         return self.walk_nary(formula, args, formula.function_name())
 
     def walk_int_constant(self, formula, **kwargs):
+        #print "INT CONSTANTANT ",formula.constant_value()
         if formula.constant_value() < 0:
             return "(- " + str(-formula.constant_value()) + ")"
         else:
             return str(formula.constant_value())
 
     def walk_real_constant(self, formula, **kwargs):
+        #print "REAL CONSTANTANT ",formula.constant_value()
+        #print "SIMPLY ",formula.constant_value.
         if formula.constant_value() < 0:
             template = "(- %s)"
         else:
@@ -635,7 +638,7 @@ class SmtDagPrinter(DagWalker):
         (n,d) = abs(formula.constant_value().numerator), \
                     formula.constant_value().denominator
         if d != 1:
-            return template % ( "(/ " + str(n) + " " + str(d) + ")" )
+            return template % ( "(" + str(n) + " / " + str(d) + ")" )
         else:
             return template % (str(n) + ".0")
 
@@ -684,7 +687,7 @@ class SmtDagPrinter(DagWalker):
             self.write(" %s)" % s.symbol_type().as_smtlib(False))
         self.write(") ")
 
-        subprinter = SmtDagPrinter(self.stream)
+        subprinter = SmtDagPrinter(self.stream,0) #Da rivedere
         subprinter.printer(formula.arg(0))
 
         self.write(")))")
@@ -827,8 +830,9 @@ class MZNPrinter(object):
         self.environment = environment
         self.last_index=0
         self.last_id=0
+        self.bv_dict={}
 
-    def serialize(self, formula,daggify=True,file_out=None):
+    def serialize(self, formula,daggify=True,output_file=None):
         """Returns a string with the human-readable version of the formula.
 
         'printer' is the printer to call to perform the serialization.
@@ -837,22 +841,23 @@ class MZNPrinter(object):
         bv_sum=[]
         buf = cStringIO()
         if daggify:
-            p = SmtDagPrinter(buf,self.last_id)
+            p = SmtDagPrinter(buf,self.last_id,self.bv_dict)
         else:
             p = HRPrinter(buf,self.last_id)
+
         bv_sum=p.printer(formula)
-        res = buf.getvalue()
-        if file_out is None: 
+        res=buf.getvalue()
+        if output_file is None:
             return res
         else:
-            bv_sum=self.print_bvsum_predicates(file_out,bv_sum)
-            file_out.write("constraint ("+res+");\n")
+            bv_sum=self.print_bvsum_predicates(p,output_file,bv_sum) #TODO: bv_summ
+            output_file.write("constraint ("+res+");\n")
             self.last_id=p.getId()
             self.last_index=len(bv_sum)
         buf.close()
         
 
-    def print_bvsum_predicates(self,file_out,bv_sum):
+    def print_bvsum_predicates(self,p,file_out,bv_sum):
         if len(bv_sum)>0:     
             while True:
                 bv_sum_temp = bv_sum
@@ -871,6 +876,7 @@ class MZNPrinter(object):
                     
                 if len(bv_sum)==len(bv_sum_temp):
                     break
+        #soluzioni naive
         count=1
         last_used_size=None
         if len(bv_sum)>0:
@@ -923,9 +929,6 @@ class MZNPrinter(object):
             else:
                 add_2_tw=add_2
             file_out.write("constraint ( sumBV("+str(add_1_tw)+","+str(add_2_tw)+","+cstr+","+ris_var+") );\n")
-            #declare variable for result
-            #declare variable for carry
-            #retrieve the size
             count+=1
         return bv_sum
         

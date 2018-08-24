@@ -1,12 +1,14 @@
+#!/usr/bin/env python
+
 '''
 Francesco Contaldo 2018 
 A python parser omt2mzn
 #TODO: parte di asset-soft BV, passing her variables_dict.keys()
-#TODO: risolvere la questione di bitvector per le operazioni con il segno
 #TODO: completare il parsing
 #TODO: inside the parser i first try to parse in SBV then BV
 #TODO: manage the sign                
 '''
+
 from pyomt.smtlib.parser import SmtLib20Parser
 from pyomt.printers_mzn import MZNPrinter
 #from pyomt.printers_dag  import HRSerializer
@@ -262,7 +264,7 @@ class Omt2Mzn():
             objective_arg = args[0]
             if objective_arg.size() == 1: #name of a variable
                 objective_arg=mgr._create_symbol(str(args[0]),var_dict[str(args[0])][0])
-            if "BV" in str(var_dict[opt_var][0]): #devo creare una variabile int per il toNum
+            if "BV" in str(var_dict[opt_var][0]):                   #change toNUM for the tmp variable
                 file_out.write("var int: "+opt_var+"_BV2INT"+";\n") #TODO: fare il cambio per il lex int no float
                 opt_symbol_int = mgr._create_symbol(opt_var+"_BV2INT",typename=tp._IntType()) 
                 opt_symbol_bv = mgr._create_symbol(opt_var,var_dict[opt_var][0])
@@ -376,7 +378,7 @@ class Omt2Mzn():
                 objective_arg=mgr._create_symbol(str(args[0]),typename=var_dict[str(args[0])][0])
             opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
             assignment = mgr.Equals(opt_symbol,objective_arg)
-            common_lines.append("constraint ("+self.serializer.serialize(assignment)+");\n")
+            common_lines.append("constraint ("+self.serializer.serialize(assignment,daggify=False)+");\n")
             if upper is not None:
                 if "BV" in str(upper.get_type()):
                     if signed>=0:
@@ -538,7 +540,7 @@ class Omt2Mzn():
         for el in asserts_list:
             if type(el) is list:
                 el=el[0]       
-            self.serializer.serialize(el,file_out)
+            self.serializer.serialize(el,output_file=file_out)
 
     def write_assertions_soft(self,asserts_soft_list,file_out):
         '''
@@ -559,7 +561,7 @@ class Omt2Mzn():
             file_out.write("var bool:"+el[-1]+"_"+str(var_index[el[-1]])+";\n")
             
             ris=self.serializer.serialize(el[0])
-            file_out.write("constraint ("+el[-1]+"_"+str(var_index[el[-1]])+"="+ris+");\n")
+            file_out.write("constraint ("+el[-1]+"_"+str(var_index[el[-1]])+" = "+ris+");\n")
             var_weight[el[-1]+"_"+str(var_index[el[-1]])]=el[1]
             var_index[el[-1]]+=1
         for cost in cost_variables_set:
