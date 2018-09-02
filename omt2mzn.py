@@ -178,7 +178,7 @@ class Omt2Mzn():
             if args[0].size()==1  and ")" not in str_args0 and "(" not in str_args0:  #TODO: review this condition
                 expression_type=var_dict[str(args[0])][0]
             else:
-                expression_type=args[0].get_type() #considerare il caso in cui sia una singola variabile e prendere il valore da var_dict
+                expression_type=args[0].get_type()      #considerare il caso in cui sia una singola variabile e prendere il valore da var_dict
             if ":id" not in args_inner:
                 var_id_name="opt_var_"+str(id_c)
                 args_inner+=[":id",var_id_name]         #needed to be rescued then
@@ -264,8 +264,8 @@ class Omt2Mzn():
             objective_arg = args[0]
             if objective_arg.size() == 1: #name of a variable
                 objective_arg=mgr._create_symbol(str(args[0]),var_dict[str(args[0])][0])
-            if "BV" in str(var_dict[opt_var][0]):                   #change toNUM for the tmp variable
-                file_out.write("var int: "+opt_var+"_BV2INT"+";\n") #TODO: fare il cambio per il lex int no float
+            if "BV" in str(var_dict[opt_var][0]):                   #TODO: change toNUM for the tmp variable
+                file_out.write("var int: "+opt_var+"_BV2INT"+";\n") #TODO: change for lex int no float 
                 opt_symbol_int = mgr._create_symbol(opt_var+"_BV2INT",typename=tp._IntType()) 
                 opt_symbol_bv = mgr._create_symbol(opt_var,var_dict[opt_var][0])
                 assignment_bv = (opt_symbol_bv,objective_arg)
