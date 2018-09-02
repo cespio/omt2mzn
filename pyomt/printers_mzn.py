@@ -25,6 +25,11 @@ from pyomt.environment import get_env
 
 from pyomt.constants import is_pyomt_fraction, is_pyomt_integer
 
+'''
+#TODO: -> bveq con = in print con daggify
+'''
+
+
 class HRPrinter(TreeWalker):
     """Performs serialization of a formula in a human-readable way.
 
@@ -407,6 +412,7 @@ class SmtDagPrinter(DagWalker):
         self.names = None
         self.mgr = get_env().formula_manager
         self.bv_sum=[] #Try to implement it as a dictionary
+        self.bv_sum_dict={}
         self.id=id
 
     def _push_with_children_to_stack(self, formula, **kwargs):
@@ -454,16 +460,23 @@ class SmtDagPrinter(DagWalker):
         #self.write("(%s = ( " % (sym))
         typeF=str(formula.get_type()).lower().replace("real","float")
         if "bv" in typeF:
-            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
-            self.write(" let{ array[1..%s] of var bool : %s = (" % (size,sym))
+            if operator!="bvadd":
+                size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
+                self.write(" let{ array[1..%s] of var bool : %s = (" % (size,sym))
         else:
             self.write(" let{ var %s : %s = ( " % (typeF,sym))
         if operator=="bvadd":
-            self.id+=1
-            nameR = "R"+str(self.id)
-            self.write(nameR)
-            self.bv_sum.append((nameR,[formula.arg(0),formula.arg(1)]))
-            self.write(" )} in  ")
+            #print "BVADD",args
+            #self.id+=1
+            #nameR = "R"+str(self.id)
+            carr=sym+"_carry"
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
+            self.write(" let{ array[1..%s] of var bool: %s;\n" %(size,sym))
+            self.write("                array[1..%s] of var bool: %s;\n" %(size,carr))
+            self.write("                constraint ( sumBV("+args[0]+","+args[1]+","+carr+","+sym+") );\n")
+            #self.write(sym)
+            #elf.bv_sum.append((sym,[args0),formula.arg(1)]))
+            self.write("                } in  ")
         elif operator=="ite":
             self.write(" if ")
             self.write(args[0])
@@ -480,7 +493,7 @@ class SmtDagPrinter(DagWalker):
             self.write(args[0])
             self.write(",")
             self.write(args[1])
-            self.write(")} in ")
+            self.write("))} in ")
         elif len(args)==1 and operator=="not":
             self.write(" ")
             self.write(" not (")
@@ -706,12 +719,12 @@ class SmtDagPrinter(DagWalker):
         assert formula is not None
         sym = self._new_symbol()
         self.openings += 1
-        self.write("let { array[1..%s] of var bool: %s = (" % (formula.bv_width, sym))
+        self.write("let { array[1..%s] of var bool: %s = (" % (formula.bv_width(), sym))
         #self.write("(let ((%s ((_ extract %d %d)" % (sym,
         #                                             formula.bv_extract_end(),
         #
         #                                             formula.bv_extract_start()))
-        self.write("extractBV(%s,%s,%s)" % (args[0],formula.bv_extract_start(),formula.bv_extract_end()))
+        self.write("extractBV(%s,%s,%s)" % (args[0],formula.bv_extract_start()+1,formula.bv_extract_end()+1))
         self.write(" )} in ")
         #for s in args:
         #    self.write(" ")
@@ -822,10 +835,6 @@ class SmtDagPrinter(DagWalker):
 
 class MZNPrinter(object):
     """Return the serialized version of the formula as a string."""
-       
-    
-    
-
     def __init__(self, environment=None):
         self.environment = environment
         self.last_index=0
@@ -850,33 +859,50 @@ class MZNPrinter(object):
         if output_file is None:
             return res
         else:
-            bv_sum=self.print_bvsum_predicates(p,output_file,bv_sum) #TODO: bv_summ
+            #
+            # print "inizio per ",formula
+            #bv_sum=self.print_bvsum_predicates2(p,output_file,bv_sum) #TODO: bv_summ
+            #print "fine per ",formula
             output_file.write("constraint ("+res+");\n")
             self.last_id=p.getId()
             self.last_index=len(bv_sum)
         buf.close()
         
 
+    '''
+    TODO: here the problem is to reduce the duplicated sum
+    '''
+    def print_bvsum_predicates2(self,p,file_out,bv_sum):
+        bv_sum_temp=[]
+        print "print ",bv_sum
+        return []
+
+
+
+                
+
+
     def print_bvsum_predicates(self,p,file_out,bv_sum):
         if len(bv_sum)>0:     
             while True:
                 bv_sum_temp = bv_sum
                 start_size= len(bv_sum)
+                print "in the loop ",bv_sum
                 for el in bv_sum_temp:
                     bv_sum=p.printer(el[1][0])
-                    if len(bv_sum)!=start_size: #ho inserito uno 
+                    if len(bv_sum)!=start_size:       #insert one
                         #self.last_id+=1
-                        el[1][0] = "R"+str(p.getId()) #modifico l'ultimo
-                        start_size=len(bv_sum) #ho chiamato sul primo e ho aggiunto uno size+1
+                        el[1][0] = "R"+str(p.getId()) #modify the last one
+                        start_size=len(bv_sum)        #call on the last one and add to size 1
 
                     bv_sum=p.printer(el[1][1])
-                    if len(bv_sum)!=start_size: #non ho fatto il primo if
+                    if len(bv_sum)!=start_size:       #first if skipped
                         #self.last_id+=1
+                        print "secondo if preso"
                         el[1][1] = "R"+str(p.getId())
-                    
                 if len(bv_sum)==len(bv_sum_temp):
                     break
-        #soluzioni naive
+        #soluzione naive
         count=1
         last_used_size=None
         if len(bv_sum)>0:
