@@ -24,10 +24,11 @@ class WrongNumbArgs(StandardError):
 
 class Omt2Mzn():
     
-    def __init__(self,file_in,file_out):
+    def __init__(self,flag_bigand,file_in,file_out):
         self.serializer=MZNPrinter()
         self.input_file=file_in
         self.output_file=file_out
+        self.flag_bigand=flag_bigand
 
     def startParsing(self):
         '''
@@ -536,11 +537,23 @@ class Omt2Mzn():
             else if x[1]==false /\ yy[1]==true then false else true
             endif endif endif 
         ; \n""")
-        
-        for el in asserts_list:
-            if type(el) is list:
-                el=el[0]       
-            self.serializer.serialize(el,output_file=file_out)
+        if self.flag_bigand=="1": #necessary bigand
+            mgr = get_env()._formula_manager
+            bigAnd=asserts_list[0][0]
+            tmp_ris=None
+            for ind in xrange(1,len(asserts_list)):
+                if type(asserts_list[ind]) is list:
+                    tmp=asserts_list[ind][0]
+                else:
+                    tmp=asserts_list[ind]
+                tmp_ris=mgr.And(bigAnd,tmp)
+                bigAnd=tmp_ris      
+            self.serializer.serialize(bigAnd,output_file=file_out)
+        else:
+            for el in asserts_list:
+                if type(el) is list:
+                    el=el[0]
+                self.serializer.serialize(el,output_file=file_out)
 
     def write_assertions_soft(self,asserts_soft_list,file_out):
         '''
@@ -579,8 +592,8 @@ class Omt2Mzn():
             file_out.write("+".join(str_ap)+"));\n")
   
 if __name__ == "__main__":
-    if len(sys.argv)!=3:
+    if len(sys.argv)!=4:
         raise WrongNumbArgs("Incorrect number of arguments")
     else:
-        parser=Omt2Mzn(sys.argv[1],sys.argv[2])
+        parser=Omt2Mzn(sys.argv[1],sys.argv[2],sys.argv[3])
         parser.startParsing()
