@@ -66,9 +66,13 @@ class HRPrinter(TreeWalker):
     def walk_nary(self, formula, ops):
         args = formula.args()
         if ops==" = " and len(args)==2 and "BV" in str(args[0].get_type()) and "BV" in str(args[1].get_type()):
-            self.write("bveq(")
+            #self.write("bveq(")
+            #yield args[0]
+            #self.write(",")
+            #yield args[1]
+            self.write("(")
             yield args[0]
-            self.write(",")
+            self.write("=")
             yield args[1]
         else:
             self.write("(")
@@ -402,7 +406,7 @@ class HRPrinter(TreeWalker):
 
 class SmtDagPrinter(DagWalker):
     
-    def __init__(self, stream, id,bv_dict={},template="tmp_%d"):
+    def __init__(self, stream,flag_bv, id,bv_dict={},template="tmp_%d"):
         DagWalker.__init__(self, invalidate_memoization=True)
         self.stream = stream
         self.write = self.stream.write
@@ -414,6 +418,8 @@ class SmtDagPrinter(DagWalker):
         self.bv_sum=[] #Try to implement it as a dictionary
         self.bv_sum_dict={}
         self.id=id
+        self.flag_bv=flag_bv
+        self.bv_max_size=20
 
     def _push_with_children_to_stack(self, formula, **kwargs):
         """Add children to the stack."""
@@ -439,10 +445,8 @@ class SmtDagPrinter(DagWalker):
         key = self.walk(f)
         self.write(key)
         return self.bv_sum
-        #self.write(")")
     
     def getId(self):
-        #self.id+=1
         return self.id
 
     def _new_symbol(self):
@@ -456,27 +460,20 @@ class SmtDagPrinter(DagWalker):
         assert formula is not None
         sym = self._new_symbol()
         self.openings += 1
-        #self.write("(let ((%s (%s" % (sym, operator))
-        #self.write("(%s = ( " % (sym))
         typeF=str(formula.get_type()).lower().replace("real","float")
-        if "bv" in typeF:
-            if operator!="bvadd":
+        if "bv" in typeF: 
+            if operator!="bvadd" and self.flag_bv:
                 size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
                 self.write(" let{ array[1..%s] of var bool : %s = (" % (size,sym))
         else:
             self.write(" let{ var %s : %s = ( " % (typeF,sym))
-        if operator=="bvadd":
-            #print "BVADD",args
-            #self.id+=1
-            #nameR = "R"+str(self.id)
+        if operator=="bvadd": 
             carr=sym+"_carry"
             size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
             self.write(" let{ array[1..%s] of var bool: %s;\n" %(size,sym))
             self.write("                array[1..%s] of var bool: %s;\n" %(size,carr))
-            self.write("                constraint ( sumBV("+args[0]+","+args[1]+","+carr+","+sym+") );\n")
-            #self.write(sym)
-            #elf.bv_sum.append((sym,[args0),formula.arg(1)]))
-            self.write("                } in  ")
+            self.write("                constraint ( sumBV("+args[0]+","+args[1]+","+carr+","+sym+") );")
+            self.write(" } in \n")
         elif operator=="ite":
             self.write(" if ")
             self.write(args[0])
@@ -485,21 +482,21 @@ class SmtDagPrinter(DagWalker):
             self.write(" else ")
             self.write(args[2])
             self.write(" endif ")
-            self.write(" )} in  ")
-        elif operator in ["lex_less","lex_lesseq","bvslt","bvsle"]:
+            self.write(" )} in\n")
+        elif operator in ["bvule","bvlst","bvslt","bvsle","bvsdiv","bvudiv"]: #this can be definied as function
             self.write(" ")
             self.write(operator)
             self.write("(")
             self.write(args[0])
             self.write(",")
             self.write(args[1])
-            self.write("))} in ")
+            self.write("))} in")
         elif len(args)==1 and operator=="not":
             self.write(" ")
             self.write(" not (")
             self.write(args[0])
             self.write(")")
-            self.write(" )} in  ")
+            self.write(" )} in\n")
         else:
             self.write(args[0])
             for s in args[1:]:
@@ -507,7 +504,7 @@ class SmtDagPrinter(DagWalker):
                 self.write(operator)
                 self.write(" ")
                 self.write(s)
-            self.write(" )} in  ")
+            self.write(" )} in\n")
         return sym
 
     def walk_and(self, formula, args):
@@ -550,76 +547,309 @@ class SmtDagPrinter(DagWalker):
         return self.walk_nary(formula, args, "to_real")
 
     def walk_div(self, formula, args):
-        return self.walk_nary(formula, args, "div")
+        typeF=str(formula.get_type()).lower().replace("real","float")
+        if typeF=="float":
+            return self.walk_nary(formula, args, "/")
+        else:
+            return self.walk_nary(formula,args, "div")
+
 
     def walk_pow(self, formula, args):
-        return self.walk_nary(formula, args, "pow")
+        #return self.walk_nary(formula, args, "pow")
+        sym = self._new_symbol()
+        self.openings += 1
+       
+        typeF=str(formula.get_type()).lower().replace("real","float")
+        self.write("""let { var %s:%s = pow(%s,%s)  
+                        } in """%(typeF,sym,args[0],args[1]))
+        return sym
+
 
     def walk_bv_and(self, formula, args):
-        return self.walk_nary(formula, args, "bvand")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvand")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1 
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
+            self.write(""" let { var int : %s  = sum([pow(2,i)* ((((%s div pow(2,i)) mod 2)) * (((%s div pow(2,i)) mod 2))) | i in 0..%s-1]);
+                            } in """ %(sym,args[0],args[1],size))
+            return sym
 
     def walk_bv_or(self, formula, args):
-        return self.walk_nary(formula, args, "bvor")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvor")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
+            self.write(""" let { var int : %s  = sum([pow(2,i)* (((((%s div pow(2,i)) mod 2)) + (((%s div pow(2,i)) mod 2)))>0) | i in 0..%s-1]);
+                } in """ %(sym,args[0],args[1],size))
+            return sym
 
     def walk_bv_not(self, formula, args):
-        return self.walk_nary(formula, args, "bvnot")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvnot")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
+            self.write(""" let { var int : %s  = sum([pow(2,i)* (1-(%s div pow(2,i)) mod 2) | i in 0..%s-1]);
+                } in """ %(sym,args[0],size))
+            return sym
 
     def walk_bv_xor(self, formula, args):
-        return self.walk_nary(formula, args, "bvxor")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvxor")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)
+            self.write(""" let { var int : %s  = sum([pow(2,i)* (((((%s div pow(2,i)) mod 2)) != (((%s div pow(2,i)) mod 2)))) | i in 0..%s-1]);
+                } in """ %(sym,args[0],args[1],size))
+            return sym 
 
     def walk_bv_add(self, formula, args):
-        return self.walk_nary(formula, args, "bvadd")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvadd")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            k3=formula.bv_width()  
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)    
+            self.write("""  let{ var int:%s = (%s+%s) mod pow(2,%s);
+                                } in """%(sym,args[0],args[1],size))
+            return sym
 
     def walk_bv_sub(self, formula, args):
-        return self.walk_nary(formula, args, "bvsub")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvsub")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)     
+            self.write("""let {
+                          var int:%s_max = pow(2,%s);
+                          var int:%s_args1 = if %s >= pow(2,%s-1)-1 then %s-%s_max else %s endif;
+                          var int:%s_args2 = if %s >= pow(2,%s-1)-1 then %s-%s_max else %s endif;
+                          var int:%s_ris = (%s_args1 - %s_args2);
+                          var int:%s = if %s_ris < 0 then %s_ris+%s_max else %s_ris endif;
+                          } in """ %(sym,size,sym,args[0],size,args[0],sym,args[0],sym,args[1],size,args[1],sym,args[1],sym,sym,sym,sym,sym,sym,sym,sym))
+            return sym
 
     def walk_bv_neg(self, formula, args):
-        return self.walk_nary(formula, args, "bvneg")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvneg")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)     
+            self.write("""let {
+                          var int:%s_max = pow(2,%s);
+                          var int:%s_args1 = if %s >= pow(2,%s-1)-1 then %s-%s_max else %s endif;
+                          var int:%s_ris = (0 - %s_args1);
+                          var int:%s = if %s_ris < 0 then %s_ris+%s_max else %s_ris endif;
+                          } in """ %(sym,size,sym,args[0],size,args[0],sym,args[0],sym,sym,sym,sym,sym,sym,sym))
+            return sym
+
 
     def walk_bv_mul(self, formula, args):
-        return self.walk_nary(formula, args, "bvmul")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvmul")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)    
+            self.write("""  let{ var int:%s = (%s*%s) mod pow(2,%s);
+                            } in """%(sym,args[0],args[1],size))
+            return sym
+
+            
 
     def walk_bv_udiv(self, formula, args):
-        return self.walk_nary(formula, args, "bvudiv")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvudiv")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1     
+            self.write("""  let{ var int:%s = (%s div %s)  
+                        } in """%(sym,args[0],args[1]))
+            return sym
 
     def walk_bv_urem(self, formula, args):
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvurem")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1  
+            self.write("""  let{ var int:%s = (%s mod %s)  
+                        } in """%(sym,args[0],args[1]))
+            return sym
 
-        return self.walk_nary(formula, args, "bvurem")
+
     def walk_bv_lshl(self, formula, args):
-        return self.walk_nary(formula, args, "bvshl")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvshl")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)    
+            self.write("""  let{ var int:%s = (%s*pow(2,%s)) mod pow(2,%s);
+                            } in """%(sym,args[0],args[1],size))
+            return sym
+
 
     def walk_bv_lshr(self, formula, args):
-        return self.walk_nary(formula, args, "bvlshr")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvlshr")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()          
+            self.write("""  let{ var int:%s = (%s div pow(2,%s));
+                            } in """%(sym,args[0],args[1]))
+            return sym
 
-    def walk_bv_ult(self, formula, args):
-        return self.walk_nary(formula, args, "lex_less")
+    def walk_bv_ult(self, formula, args):    #depend on the encoding
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvult")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            self.write("""let { var bool:%s = (%s<%s) 
+                             } in """%(sym,args[0],args[1]))
+            return sym
 
     def walk_bv_ule(self, formula, args):
-        return self.walk_nary(formula, args, "lex_lesseq")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvule")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            self.write("""let { var bool:%s = (%s<=%s) 
+                            } in """%(sym,args[0],args[1]))
+            return sym
 
     def walk_bv_slt(self, formula, args):
-        return self.walk_nary(formula, args, "bvlst")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvlst")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            size=formula.args()[0].bv_width()  
+            self.write("""let { 
+                          var int:%s_max = pow(2,%s);
+                          var int:%s_args1 = if %s >= pow(2,%s-1)-1 then %s-%s_max else %s endif;
+                          var int:%s_args2 = if %s >= pow(2,%s-1)-1 then %s-%s_max else %s endif;
+                          var bool:%s = (%s_args1 < %s_args2)  
+                          } in  """%(sym,size,sym,args[0],size,args[0],sym,args[0],sym,args[1],size,args[1],sym,args[1],sym,sym,sym))
+            return sym
 
     def walk_bv_sle(self, formula, args):
-        return self.walk_nary(formula, args, "bvsle")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvsle")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            size=formula.args()[0].bv_width()  
+            self.write("""let { 
+                          var int:%s_max = pow(2,%s);
+                          var int:%s_args1 = if %s >= pow(2,%s-1) then %s-%s_max else %s endif;
+                          var int:%s_args2 = if %s >= pow(2,%s-1) then %s-%s_max else %s endif;
+                          var bool:%s = (%s_args1 <= %s_args2);  
+                        } in """%(sym,size,sym,args[0],size,args[0],sym,args[0],sym,args[1],size,args[1],sym,args[1],sym,sym,sym))
+            return sym
 
     def walk_bv_concat(self, formula, args):
-        return self.walk_nary(formula, args, "concat")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "concat")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            size_s1=formula.args()[0].bv_width()
+            size_s2=formula.args()[1].bv_width()
+            self.write(""" let { var int: %s = %s + sum([pow(2,i+%s)*(((%s div pow(2,i)) mod 2)) | i in 0..%s]);
+                                } in """%(sym,args[1],size_s2,args[0],size_s1-1))
+            return sym
 
     def walk_bv_comp(self, formula, args):
-        return self.walk_nary(formula, args, "bvcomp")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvcomp")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1   
+            self.write(""" let { var int : %s  = if %s=%s then 1 else 0 endif;
+                            } in """ %(sym,args[0],args[1]))
+            return sym
+
 
     def walk_bv_ashr(self, formula, args):
-        return self.walk_nary(formula, args, "bvashr")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvashr")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)    
+            self.write("""  let{ 
+                               var int:%s_max = pow(2,%s);
+                               var int:%s_args1 = if %s>=pow(2,%s-1) then %s-%s_max else %s endif;
+                               var int:%s_ris = if %s mod 2 =1 then 1-(%s_args1 div pow(2,%s)) else (%s_args1 div pow(2,%s)) endif;
+                               var int:%s = if %s_ris < 0 then %s_ris+%s_max else %s_ris endif;
+                            } in """%(sym,size,sym,args[0],size,args[0],sym,args[0],sym,args[0],sym,args[1],sym,args[1],sym,sym,sym,sym,sym))
+            return sym
+
 
     def walk_bv_sdiv(self, formula, args):
-        return self.walk_nary(formula, args, "bvsdiv")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvsdiv")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)     
+            self.write("""let {
+                          var int:%s_max = pow(2,%s);
+                          var int:%s_args1 = if %s >= pow(2,%s-1) then %s-%s_max else %s endif;
+                          var int:%s_args2 = if %s >= pow(2,%s-1) then %s-%s_max else %s endif;
+                          var int:%s_ris = (%s_args1 div %s_args2);
+                          var int:%s = if %s_ris < 0 then %s_ris+%s_max else %s_ris endif;
+                          } in """ %(sym,size,sym,args[0],size,args[0],sym,args[0],sym,args[1],size,args[1],sym,args[1],sym,sym,sym,sym,sym,sym,sym,sym))
+            return sym
 
     def walk_bv_srem(self, formula, args):
-        return self.walk_nary(formula, args, "bvsrem")
+        if self.flag_bv:
+            return self.walk_nary(formula, args, "bvsrem")
+        else:
+            sym = self._new_symbol()
+            self.openings += 1
+            typeF=str(formula.get_type()).lower()       
+            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)    #(sign follows dividend)
+            self.write("""let {
+                          var int:%s_max = pow(2,%s);
+                          var int:%s_args1 = if %s >= pow(2,%s-1) then %s-%s_max else %s endif;
+                          var int:%s_args2 = if %s >= pow(2,%s-1) then %s-%s_max else %s endif;
+                          var int:%s_ris = (%s_args1 mod %s_args2);
+                          var int:%s = if %s_ris < 0 then %s_ris+%s_max else %s_ris endif;
+                          } in """ %(sym,size,sym,args[0],size,args[0],sym,args[0],sym,args[1],size,args[1],sym,args[1],sym,sym,sym,sym,sym,sym,sym,sym))
+            return sym
+
 
     def walk_bv_tonatural(self, formula, args):
-        return self.walk_nary(formula, args, "bv2nat")
+        #return self.walk_nary(formula, args, "bv2nat")
+        sym = self._new_symbol()
+        self.openings += 1
+        self.write("let { var int:%s = %s;  } in """%(sym,args[0]))
+        return sym
 
     def walk_array_select(self, formula, args):
         return self.walk_nary(formula, args, "select")
@@ -656,18 +886,14 @@ class SmtDagPrinter(DagWalker):
             return template % (str(n) + ".0")
 
     def walk_bv_constant(self, formula, **kwargs):
-        '''
-        short_res = str(bin(formula.constant_value()))[2:]
-        if formula.constant_value() >= 0:
-            filler = "0"
+
+        if self.flag_bv:   
+            bvsequence=str('{0:0'+str(formula.bv_width())+'b}').format(formula.constant_value())
+            bvsequence_comma = re.sub(r'([0-1])(?!$)', r'\1,',bvsequence)
+            bvsequence_comma_tf = bvsequence_comma.replace("0","false").replace("1","true")
+            return "["+bvsequence_comma_tf+"]"
         else:
-            raise NotImplementedError
-        res = short_res.rjust(formula.bv_width(), filler)
-        '''
-        bvsequence=str('{0:0'+str(formula.bv_width())+'b}').format(formula.constant_value())
-        bvsequence_comma = re.sub(r'([0-1])(?!$)', r'\1,',bvsequence)
-        bvsequence_comma_tf = bvsequence_comma.replace("0","false").replace("1","true")
-        return "["+bvsequence_comma_tf+"]"
+            return str(formula.constant_value())
         #return "#b" + res
 
 
@@ -700,45 +926,50 @@ class SmtDagPrinter(DagWalker):
             self.write(" %s)" % s.symbol_type().as_smtlib(False))
         self.write(") ")
 
-        subprinter = SmtDagPrinter(self.stream,0) #Da rivedere
+        subprinter = SmtDagPrinter(self.stream,0,0) #Da rivedere
         subprinter.printer(formula.arg(0))
 
         self.write(")))")
         return sym
 
     def walk_bv_extract(self, formula, args, **kwargs):
-        """
-        self.write("extractBV(")
-        yield formula.arg(0)
-        self.write(",%d,%d)" % (formula.bv_extract_start()+1,
-                                       formula.bv_extract_end()+1))
-
-        let{ var %s : %s = ( 
-        """
-
         assert formula is not None
         sym = self._new_symbol()
         self.openings += 1
-        self.write("let { array[1..%s] of var bool: %s = (" % (formula.bv_width(), sym))
-        #self.write("(let ((%s ((_ extract %d %d)" % (sym,
-        #                                             formula.bv_extract_end(),
-        #
-        #                                             formula.bv_extract_start()))
-        self.write("extractBV(%s,%s,%s)" % (args[0],formula.bv_extract_start()+1,formula.bv_extract_end()+1))
-        self.write(" )} in ")
-        #for s in args:
-        #    self.write(" ")
-        #    self.write(s)
-        #self.write("))) ")
+        if self.flag_bv:
+            self.write("let { array[1..%s] of var bool: %s = (" % (formula.bv_width(), sym))
+            self.write("extractBV(%s,%s,%s)" % (args[0],formula.bv_extract_start()+1,formula.bv_extract_end()+1))
+            self.write(" )} in ")
+        else:
+            start=formula.bv_extract_start()
+            end=formula.bv_extract_end()
+            if start != end:
+                self.write("let {var int : %s_s1 = %s div pow(2,%s);\n "%(sym,args[0],start))
+                self.write("""   var int : %s = sum([pow(2,i)*(((%s_s1 div pow(2,i)) mod 2)) | i in 0..(%s-%s)])\n"""
+                                 %(sym,sym,end,start))
+
+            else:
+                self.write("let { var int : %s =  (%s div pow(2,%s)) mod 2 ;\n" 
+                                %(sym,args[0],start))
+            self.write("   } in ")
         return sym
 
     @handles(op.BV_SEXT, op.BV_ZEXT)
     def walk_bv_extend(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
+        sym = self._new_symbol()
+        self.openings += 1
+        if formula.is_bv_zext():
+            self.write("let { var int:%s = %s;  } in """%(sym,args[0]))
+        else:
+            assert formula.is_bv_sext() 
+            self.write("""let { var int:%s = %s+sum([pow(2,i) | i in %s..%s ]);  } in """%(sym,args[0],formula.args()[0].bv_width(),formula.bv_width()-1))
+        return sym
+        '''
         if formula.is_bv_zext():
             extend_type = "zero_extend"
         else:
-            assert formula.is_bv_sext()
+            assert formula.is_bv_sext() 
             extend_type = "sign_extend"
 
         sym = self._new_symbol()
@@ -750,24 +981,83 @@ class SmtDagPrinter(DagWalker):
             self.write(s)
         self.write("))) ")
         return sym
-
+        '''
     @handles(op.BV_ROR, op.BV_ROL)
     def walk_bv_rotate(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
-        if formula.is_bv_ror():
-            rotate_type = "rotate_right"
-        else:
-            assert formula.is_bv_rol()
-            rotate_type = "rotate_left"
-
         sym = self._new_symbol()
         self.openings += 1
+        size=formula.bv_width()
+        rotate=formula.bv_rotation_step()
+        if formula.is_bv_ror():
+            self.write("""let { array [0..%s] of var int: div_tmp;
+                                array [0..%s] of var int: ris_tmp;
+                                var int: %s = ris_tmp[%s];
+                                constraint(forall (i in 0..%s)
+                                (
+                                    if i=0 then
+                                       
+                                       if %s mod 2 = 0 then
+                                         ( div_tmp[i]=%s div 2) /\\
+                                         (ris_tmp[i]=div_tmp[i])
+                                       else
+                                         (div_tmp[i]=%s div 2) /\\
+                                         (ris_tmp[i]=pow(2,%s)+div_tmp[i])
+                                       endif
+                                    else
+                                       
+                                       if ris_tmp[i-1] mod 2 = 0 then
+                                         (div_tmp[i]=ris_tmp[i-1] div 2)/\\
+                                         (ris_tmp[i]=div_tmp[i])
+                                       else
+                                         (div_tmp[i]=ris_tmp[i-1] div 2)/\\
+                                         (ris_tmp[i]=pow(2,%s)+div_tmp[i])
+                                       endif
+                                    endif
+                                ));
+                               
+
+                                    } in """ %(rotate-1,rotate-1,sym,rotate-1,rotate-1,args[0],args[0],args[0],size-1,size-1))
+        else:
+            assert formula.is_bv_rol()
+            self.write("""let { array [0..%s] of var int: mul_tmp;
+                                array [0..%s] of var int: ris_tmp;
+                                var int:%s=ris_tmp[%s];
+                                constraint(forall (i in 0..%s)
+                                (
+                                    if i=0 then
+                                       
+                                        if %s >= pow(2,%s) then
+                                            (mul_tmp[i] = (%s * 2) mod pow(2,%s)) /\\
+                                            (ris_tmp[i]=mul_tmp[i]+1)
+                                        else
+                                            (mul_tmp[i] = (%s * 2) mod pow(2,%s)) /\\
+                                            (ris_tmp[i]=mul_tmp[i])
+                                        endif
+                                    else
+                                        
+                                        if ris_tmp[i-1] >= pow(2,%s) then
+                                            (mul_tmp[i] = (ris_tmp[i-1] * 2) mod pow(2,%s)) /\\
+                                            (ris_tmp[i]=mul_tmp[i]+1)
+                                        else
+                                            (mul_tmp[i] = (ris_tmp[i-1] * 2) mod pow(2,%s)) /\\
+                                            (ris_tmp[i]=mul_tmp[i])
+                                        endif
+                                    endif
+                                ));
+                                
+
+                        } in """ %(rotate-1,rotate-1,sym,rotate-1,rotate-1,args[0],size-1,args[0],size,args[0],size,size-1,size,size))
+            
+
+        '''
         self.write("(let ((%s ((_ %s %d)" % (sym, rotate_type,
                                              formula.bv_rotation_step()))
         for s in args:
             self.write(" ")
             self.write(s)
         self.write("))) ")
+        '''
         return sym
 
     def walk_str_length(self, formula, args, **kwargs):
@@ -841,7 +1131,7 @@ class MZNPrinter(object):
         self.last_id=0
         self.bv_dict={}
 
-    def serialize(self, formula,daggify=True,output_file=None):
+    def serialize(self,formula,flag_bv,daggify=True,output_file=None):
         """Returns a string with the human-readable version of the formula.
 
         'printer' is the printer to call to perform the serialization.
@@ -850,7 +1140,7 @@ class MZNPrinter(object):
         bv_sum=[]
         buf = cStringIO()
         if daggify:
-            p = SmtDagPrinter(buf,self.last_id,self.bv_dict)
+            p = SmtDagPrinter(buf,flag_bv,self.last_id,self.bv_dict)
         else:
             p = HRPrinter(buf,self.last_id)
 

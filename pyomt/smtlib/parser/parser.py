@@ -595,7 +595,12 @@ class SmtLibParser(object):
             #    fun = mgr.SBV(v, width) #optimathsat
             #except PyomtValueError:
             #    fun = mgr.BV(v,width) #optimathsat
-            fun = mgr.BV(v,width)
+            print("Value ",v)
+            if v<0:
+                print("faccio signed")
+                fun = mgr.SBV(v,width)
+            else:
+                fun = mgr.BV(v,width)
             
 
         else:
