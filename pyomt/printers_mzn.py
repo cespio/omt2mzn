@@ -799,13 +799,14 @@ class SmtDagPrinter(DagWalker):
             sym = self._new_symbol()
             self.openings += 1
             typeF=str(formula.get_type()).lower()       
-            size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)    
-            self.write("""  let{ 
-                               var int:%s_max = pow(2,%s);
-                               var int:%s_args1 = if %s>=pow(2,%s-1) then %s-%s_max else %s endif;
-                               var int:%s_ris = if %s mod 2 =1 then 1-(%s_args1 div pow(2,%s)) else (%s_args1 div pow(2,%s)) endif;
-                               var int:%s = if %s_ris < 0 then %s_ris+%s_max else %s_ris endif;
-                            } in """%(sym,size,sym,args[0],size,args[0],sym,args[0],sym,args[0],sym,args[1],sym,args[1],sym,sym,sym,sym,sym))
+            size=int(re.sub(r"bv{([0-9]+)}",r"\1",typeF))   
+            self.write("""  let{  
+                                  var int:%s_args1 = if %s>=%s then %s-%s+%s else %s endif;
+                                  var int:%s_ris =  %s_args1 div pow(2,%s);
+                                  var int:%s = if %s<%s  then %s_ris else sum([pow(2,i)*(((%s_ris+%s) div pow(2,i)) mod 2)|i in 0..%s]) endif;
+                                } in """%(sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),str(pow(2,31)),args[0], 
+                                          sym,sym,args[1],
+                                          sym,args[0],str(pow(2,size-1)),sym,sym,str(pow(2,29)+pow(2,30)+pow(2,31)+pow(2,size)),size-1))
             return sym
 
 
@@ -845,6 +846,7 @@ class SmtDagPrinter(DagWalker):
 
 
     def walk_bv_tonatural(self, formula, args):
+        # Kind of useless
         #return self.walk_nary(formula, args, "bv2nat")
         sym = self._new_symbol()
         self.openings += 1
@@ -990,6 +992,13 @@ class SmtDagPrinter(DagWalker):
         size=formula.bv_width()
         rotate=formula.bv_rotation_step()
         if formula.is_bv_ror():
+            self.write("""let { var int:%s = (((%s div pow(2,%s)) + ((%s * pow(2,%s-%s) mod pow(2,%s))))) mod pow(2,%s);
+                } in  """%(sym,args[0],rotate,args[0],size,rotate,size,size))
+        else:
+            self.write("""let { var int:%s = (((%s div pow(2,%s-%s))) + ((%s * pow(2,%s) mod pow(2,%s)))) mod pow(2,%s); 
+                } in  """%(sym,args[0],size,rotate,args[0],rotate,size,size))
+        '''
+        if formula.is_bv_ror():
             self.write("""let { array [0..%s] of var int: div_tmp;
                                 array [0..%s] of var int: ris_tmp;
                                 var int: %s = ris_tmp[%s];
@@ -1050,6 +1059,7 @@ class SmtDagPrinter(DagWalker):
                         } in """ %(rotate-1,rotate-1,sym,rotate-1,rotate-1,args[0],size-1,args[0],size,args[0],size,size-1,size,size))
             
 
+        '''
         '''
         self.write("(let ((%s ((_ %s %d)" % (sym, rotate_type,
                                              formula.bv_rotation_step()))

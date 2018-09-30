@@ -7,6 +7,7 @@ with open(fin,"r") as inputf:
     for line in inputf:
         line=line.strip()
         if "constraint" in line and "let" in line:
+            line=line.strip()
             line1=re.sub("let{","",line)
             line1=re.sub("} in","\n",line1)
             line1=re.sub(r"constraint \(",r"constraint ( let { ",line1)
