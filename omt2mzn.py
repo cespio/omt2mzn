@@ -8,8 +8,7 @@ A python parser omt2mzn
 #TODO: manage the sign      
 # 
 # 
-#TODO: complete the operation for the bitVector array of boolean representation
-#TODO: modify the integer representation of the BV
+
 #TODO: aggiungere l'opzione per lexicograsphic
 #TODO: verificare che operandi mancano da complentare            
 '''
@@ -17,6 +16,7 @@ A python parser omt2mzn
 from pyomt.smtlib.parser import SmtLib20Parser
 from pyomt.printers_mzn import MZNPrinter
 from pyomt.environment import get_env
+import argparse
 import pyomt.typing as tp
 import sys
 import re
@@ -28,12 +28,12 @@ class WrongNumbArgs(StandardError):
 
 class Omt2Mzn():
     #if flag bv = true bv array rap
-    def __init__(self,flag_bigand,flag_bv,file_in,file_out):
+    def __init__(self,file_in,file_out,flag_bigand):
         self.serializer=MZNPrinter()
         self.input_file=file_in
         self.output_file=file_out
         self.flag_bigand=flag_bigand
-        self.flag_bv=bool(int(flag_bv))
+
     def startParsing(self):
         '''
             Function that call the SmtLib20Parser() to obtain the list of the commands
@@ -119,15 +119,12 @@ class Omt2Mzn():
         flat_stack=[item for l in stack for item in l]
         var_dict={}
         asserts_list=[]
-        #define_fun_list={}
         asserts_soft_list=[]
         commands_list=[]             #maximize/minimize
         set_priority_option="box"    #default value for the case where no option is specified, look for the last one in case
         for el in flat_stack:
             if el.name=='declare-fun' and len(el.args)==1: 
                 var_dict[str(el.args[0])]=[el.args[0].get_type()]    #rescue the variable type
-            #elif el.name=='define-fun' and len(el.args)==2:         #treat them as constraint
-            #    define_fun_list[str(el.args[0])]=[el.args[1:]]      #empty,type,expression
             elif el.name=='assert':
                 asserts_list.append(el.args)
             elif el.name=='assert-soft':
@@ -152,7 +149,6 @@ class Omt2Mzn():
         dict_type={}
         mgr = get_env()._formula_manager
         for assert_exp in asserts_soft_list:
-            #assert_exp [expression(Fnode),assert_soft_id]
             if assert_exp[1]==1:
                 current_type=mgr.Int(1).get_type()
             else:
@@ -270,14 +266,15 @@ class Omt2Mzn():
             objective_arg = args[0]
             if objective_arg.size() == 1: #name of a variable
                 objective_arg=mgr._create_symbol(str(args[0]),var_dict[str(args[0])][0])
+            '''
             if "BV" in str(var_dict[opt_var][0]):                   #TODO: change toNUM for the tmp variable
                 file_out.write("var int: "+opt_var+"_BV2INT"+";\n") #TODO: change for lex int no float 
                 opt_symbol_int = mgr._create_symbol(opt_var+"_BV2INT",typename=tp._IntType()) 
                 opt_symbol_bv = mgr._create_symbol(opt_var,var_dict[opt_var][0])
                 assignment_bv = (opt_symbol_bv,objective_arg)
                 assignment_toNum = mgr.Equals(opt_symbol_int,opt_symbol_bv)
-                file_out.write("constraint ("+self.serializer.serialize(assignment_bv,self.flag_bv)+");\n") #bv = objective in bv
-                str_to_write = self.serializer.serialize(assignment_toNum,self.flag_bv)
+                file_out.write("constraint ("+self.serializer.serialize(assignment_bv)+");\n") #bv = objective in bv
+                str_to_write = self.serializer.serialize(assignment_toNum)
                 if signed == -1:
                     str_to_write = re.sub(r"(.*) = (.*)",r"\1 = toNum(\2)",str_to_write)
                 else:
@@ -293,6 +290,7 @@ class Omt2Mzn():
                     index_optvarBV=var_list.index(opt_var)
                     var_list.remove(opt_var)
                     var_list.insert(index_optvarBV,opt_var+"_BV2INT")
+            '''
             else: 
                 opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
                 if name=="maximize":
@@ -300,7 +298,7 @@ class Omt2Mzn():
                     assignment = mgr.Equals(opt_symbol,objective_arg_neg)
                 else:
                     assignment = mgr.Equals(opt_symbol,objective_arg)
-                file_out.write("constraint ("+self.serializer.serialize(assignment,self.flag_bv)+");\n")  
+                file_out.write("constraint ("+self.serializer.serialize(assignment)+");\n")  
                 if flag_change and opt_var+"_f" in var_list:
                         file_out.write("constraint("+opt_var+"_f=int2float("+opt_var+"));\n")
 
@@ -313,7 +311,7 @@ class Omt2Mzn():
                         less_than = mgr.BVULE(opt_symbol,upper)
                 else:
                     less_than = mgr.LE(opt_symbol,upper)
-                file_out.write("constraint ("+self.serializer.serialize(less_than,self.flag_bv)+");\n")
+                file_out.write("constraint ("+self.serializer.serialize(less_than)+");\n")
             if lower is not None:
                 if "BV" in str(lower.get_type()):
                     if signed>=0:
@@ -322,7 +320,7 @@ class Omt2Mzn():
                         less_than = mgr.BVULE(lower,opt_symbol)
                 else:
                     less_than = mgr.LE(lower,opt_symbol)
-                file_out.write("constraint ("+self.serializer.serialize(less_than,self.flag_bv)+");\n")
+                file_out.write("constraint ("+self.serializer.serialize(less_than)+");\n")
         
         file_out.write("array[int] of var "+str(final_type)+": obj_array;\n")
         file_out.write("obj_array=[")
@@ -382,7 +380,7 @@ class Omt2Mzn():
                 objective_arg=mgr._create_symbol(str(args[0]),typename=var_dict[str(args[0])][0])
             opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
             assignment = mgr.Equals(opt_symbol,objective_arg)
-            common_lines.append("constraint ("+self.serializer.serialize(assignment,self.flag_bv,daggify=False)+");\n")
+            common_lines.append("constraint ("+self.serializer.serialize(assignment,daggify=False)+");\n")
             if upper is not None:
                 if "BV" in str(upper.get_type()):
                     if signed>=0:
@@ -391,7 +389,7 @@ class Omt2Mzn():
                         less_than = mgr.BVULE(opt_symbol,upper)
                 else:
                     less_than = mgr.LE(opt_symbol,upper)
-                unique_upper.append("constraint ("+self.serializer.serialize(less_than,self.flag_bv)+");\n")#TODO:
+                unique_upper.append("constraint ("+self.serializer.serialize(less_than)+");\n")#TODO:
             else:
                 unique_upper.append("")
             if lower is not None:
@@ -402,7 +400,7 @@ class Omt2Mzn():
                         less_than = mgr.BVULE(lower,opt_symbol)
                 else:
                     less_than = mgr.LE(lower,opt_symbol)
-                unique_lower.append("constraint ("+self.serializer.serialize(less_than,self.flag_bv)+");\n")#TODO:
+                unique_lower.append("constraint ("+self.serializer.serialize(less_than)+");\n")#TODO:
             else:
                 unique_lower.append("")
         for (name,args) in commands_list:
@@ -428,19 +426,28 @@ class Omt2Mzn():
             except ValueError:
                 signed=-1
             if name=='maximize': #qui si puo decidere facilmente se con segno o no, basta vedere se signed
-                if "BV" in str(var_dict[opt_var][0]) and self.flag_bv:
+                if "BV" in str(var_dict[opt_var][0]):
+                    file_out.write("constraint(%s >= %s /\ %s <= %s);\n"%(opt_symbol,0,opt_symbol,pow(2,opt_symbol.bv_width())-1))
                     if signed!=-1:
-                        file_out.write("solve maximize toNumS("+opt_var+");\n")
+                        file_out.write("solve maximize (-%s*((%s div %s) mod 2))+sum([pow(2,i)*((%s div pow(2,i)) mod 2)| i in 0..%s]);\n"
+                                                        %(pow(2,opt_symbol.bv_width()-1),opt_symbol,pow(2,opt_symbol.bv_width()-1),opt_symbol,opt_symbol.bv_width()-1))
                     else:
-                        file_out.write("solve maximize toNum("+opt_var+");\n")
+                        #bound = mgr.And(mgr.BVULE(opt_symbol,mgr.BV(pow(2,opt_symbol.bv_width())-1,width=opt_symbol.bv_width())),mgr.BVUGE(opt_symbol,mgr.BV(0,width=opt_symbol.bv_width())))
+                        #file_out.write("constraint ("+self.serializer.serialize(bound)+");\n")       
+                        file_out.write("solve maximize "+opt_var+";\n")
                 else:
                     file_out.write("solve maximize "+opt_var+";\n")
             else:
-                if "BV" in str(var_dict[opt_var][0]) and self.flag_bv:
+                if "BV" in str(var_dict[opt_var][0]):
+                    file_out.write("constraint(%s >= %s /\ %s <= %s);\n"%(opt_symbol,0,opt_symbol,pow(2,opt_symbol.bv_width())-1))
                     if signed!=-1:
-                        file_out.write("solve minimize toNumS("+opt_var+");\n")
+                        file_out.write("solve minimize (-%s*((%s div %s) mod 2))+sum([pow(2,i)*((%s div pow(2,i)) mod 2)| i in 0..%s]);\n"
+                                                        %(pow(2,opt_symbol.bv_width()-1),opt_symbol,pow(2,opt_symbol.bv_width()-1),opt_symbol,opt_symbol.bv_width()-1))
                     else:
-                        file_out.write("solve minimize toNum("+opt_var+");\n")
+                        #bound = mgr.And(mgr.BVULE(opt_symbol,mgr.BV(pow(2,opt_symbol.bv_width())-1,width=opt_symbol.bv_width())),mgr.BVUGE(opt_symbol,mgr.BV(0,width=opt_symbol.bv_width())))   
+                        #file_out.write("constraint ("+self.serializer.serialize(bound)+");\n")
+                        
+                        file_out.write("solve minimize "+opt_var+";\n")
                 else:
                     file_out.write("solve minimize "+opt_var+";\n")
             
@@ -449,34 +456,15 @@ class Omt2Mzn():
     
     ## ------  END BOX ------##
 
-
-    def retrieve_presence_bv(self,var_dict):
-        '''
-            Return true if inside the variables there are some BV
-        '''
-        for var in var_dict.keys():
-            bv_search=re.search(r"BV{([0-9]+)}",str(var_dict[var][0]))
-            if bv_search:
-                return True
-        return False
-
     def write_list_variables(self,variables,file_out):
         '''
             Writes list of the variables in mzn
         '''
-        bv_len=0
         for var in variables.keys():
             #In minizinc if no domain is specified there can be problems with the solver like g12
             bv_search=re.search(r"BV{([0-9]+)}",str(variables[var][0]))
             if bv_search:
-                bv_len,=bv_search.groups()
-                if self.flag_bv:
-                    file_out.write("array[1.."+bv_len+"] of var bool:"+str(var)+";\n")
-                else:
-                    #file_out.write("var 0..pow(2,"+str(int(bv_len))+")-1:"+str(var)+";\n") 
-                    #file_out.write("var 0..pow(2,"+str(int(bv_len)-1)+") : "+str(var)+";\n")
-                    #file_out.write("constraint( %s >= 0 /\ %s <= (pow(2,%s)-1));\n"%(str(var),str(var),str(int(bv_len))))
-                    file_out.write("var int : "+str(var)+";\n")                                  
+                file_out.write("var int : "+str(var)+";\n")                                  
             elif "Real" in str(variables[var][0]):
                 file_out.write("var -2147483646.0..2147483646.0 : "+str(var)+";\n")
                 #file_out.write("var float : "+str(var)+";\n")  
@@ -490,65 +478,7 @@ class Omt2Mzn():
             Write the list of assertion
             reference: https://github.com/hakank/hakank/blob/master/minizinc/bit_vector1.mzn
         '''
-        if self.retrieve_presence_bv(var_dict) and self.flag_bv:
-            
-            file_out.write("\n%BitVector Function Definition\n")
-            file_out.write("""\nfunction var int: toNumS (array[int] of var bool: a) = 
-                                -ceil(pow(2,length(a)-1))*a[1]+sum([ceil(pow(2,length(a)-i)) * a[i]| i in 2..length(a)]);\n""")
-            file_out.write("""\nfunction var int: toNum (array[int] of var bool: a) = 
-                                sum([ceil(pow(2,length(a)-i)) * a[i]| i in 1..length(a)]);\n""")
-            file_out.write("""\nfunction array[int] of var bool: extractBV(array[int] of var bool: a,int: i,int: j) = 
-  let{int: new_i = length(a)-i+1,
-      int: new_j = length(a)-j+1} in 
-  [a[k] | k in new_j..new_i];\n""")
-            file_out.write("""\n
-    predicate sumBV(array[int] of var bool: x,
-                    array[int] of var bool: y,
-                    array[int] of var bool: c,
-                    array[int] of var bool: r) =
-        assert(index_sets_agree(x, y), "array index sets do not match",
-        assert(index_sets_agree(x, c), "array index sets do not match",
-        assert(index_sets_agree(x, r), "array index sets do not match",
-            forall ( i in reverse(1..length(x)) ) (
-                if (i == length(x)) then
-                    (c[i] = (x[i] /\ y[i])) /\\
-                    (r[i] = (x[i] xor y[i]))
-                else
-                    (c[i] = ((x[i] /\ y[i]) \/ (r[i] /\ c[i+1]))) /\\
-                    (r[i] = (x[i] xor y[i] xor c[i+1]))
-                endif
-            )
-        )));\n""")
-            file_out.write("""\npredicate bveq(array [$T] of var bool: x, array [$T] of var bool: y) =
-        let {
-            array [int] of var bool: xx = array1d(x), 
-            array [int] of var bool: yy = array1d(y),
-        } in (assert(index_sets_agree(x, y), "array index sets do not match", 
-            forall ( i in index_set(xx) ) ( 
-            not(xx[i] xor yy[i]) ))
-        );\n""")
-            file_out.write("""\n predicate bvsle(array [int] of var bool: x, array [int] of var bool: y) =
-        let {
-            array [int] of var bool: xx = array1d(x), 
-            array [int] of var bool: yy = array1d(y),
-        } in 
-            if xx[1]==true /\ yy[1]==true then lex_greatereq(extractBV(xx,2,length(xx)),extractBV(yy,2,length(yy))) 
-            else if x[1]==false /\ yy[1]==false then lex_lesseq(extractBV(xx,2,length(xx)),extractBV(yy,2,length(yy)))
-            else if x[1]==false /\ yy[1]==true then false else true
-            endif endif endif 
-        ;\n""")
-            file_out.write("""\n  predicate bvslt(array [int] of var bool: x, array [int] of var bool: y) =
-        let {
-            array [int] of var bool: xx = array1d(x), 
-            array [int] of var bool: yy = array1d(y),
-        } in 
-            if xx[1]==true /\ yy[1]==true then lex_greater(extractBV(xx,2,length(xx)),extractBV(yy,2,length(yy))) 
-            else if x[1]==false /\ yy[1]==false then lex_less(extractBV(xx,2,length(xx)),extractBV(yy,2,length(yy)))
-            else if x[1]==false /\ yy[1]==true then false else true
-            endif endif endif 
-        ; \n""")
-
-        if self.flag_bigand=="1": #necessary bigand
+        if self.flag_bigand==True: #necessary bigand
             mgr = get_env()._formula_manager
             bigAnd=asserts_list[0][0]
             tmp_ris=None
@@ -559,12 +489,12 @@ class Omt2Mzn():
                     tmp=asserts_list[ind]
                 tmp_ris=mgr.And(bigAnd,tmp)
                 bigAnd=tmp_ris      
-            self.serializer.serialize(bigAnd,self.flag_bv,output_file=file_out)
+            self.serializer.serialize(bigAnd,output_file=file_out)
         else:
             for el in asserts_list:
                 if type(el) is list:
                     el=el[0]
-                self.serializer.serialize(el,self.flag_bv,output_file=file_out)
+                self.serializer.serialize(el,output_file=file_out)
 
     def write_assertions_soft(self,asserts_soft_list,file_out):
         '''
@@ -584,7 +514,7 @@ class Omt2Mzn():
         for el in asserts_soft_list:
             file_out.write("var bool:"+el[-1]+"_"+str(var_index[el[-1]])+";\n")
             
-            ris=self.serializer.serialize(el[0],self.flag_bv)
+            ris=self.serializer.serialize(el[0])
             file_out.write("constraint ("+el[-1]+"_"+str(var_index[el[-1]])+" = "+ris+");\n")
             var_weight[el[-1]+"_"+str(var_index[el[-1]])]=el[1]
             var_index[el[-1]]+=1
@@ -603,8 +533,11 @@ class Omt2Mzn():
             file_out.write("+".join(str_ap)+"));\n")
   
 if __name__ == "__main__":
-    if len(sys.argv)!=5:
-        raise WrongNumbArgs("Incorrect number of arguments")
-    else:
-        parser=Omt2Mzn(sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4])
-        parser.startParsing()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_file", help="smt2 input file path")
+    parser.add_argument("output_file", help="mzn input file path")
+    parser.add_argument("--big_and", action="store_true", default=False, help="if used this option allows to merge all the asserts in only one big assert")
+    args = parser.parse_args()
+    parser=Omt2Mzn(args.input_file,args.output_file,args.big_and)
+    parser.startParsing()
+    

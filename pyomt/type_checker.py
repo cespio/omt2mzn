@@ -168,7 +168,8 @@ class SimpleTypeChecker(walkers.DagWalker):
     def walk_bv_rotate(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         target_width = formula.bv_width()
-        if target_width < formula.bv_rotation_step() or target_width < 0:
+        #if target_width < formula.bv_rotation_step() or target_width < 0:
+        if target_width < 0:
             return None
         if target_width != args[0].width:
             return None
