@@ -23,16 +23,17 @@ import re
 import os
 
 
-class WrongNumbArgs(StandardError):
+class MultiTypeLexErr(StandardError):
     pass
 
 class Omt2Mzn():
     #if flag bv = true bv array rap
-    def __init__(self,file_in,file_out,flag_bigand):
-        self.serializer=MZNPrinter()
+    def __init__(self,file_in,file_out,flag_bigand,max_int_bit_size):
+        self.serializer=MZNPrinter(max_int_bit_size)
         self.input_file=file_in
         self.output_file=file_out
         self.flag_bigand=flag_bigand
+        
 
     def startParsing(self):
         '''
@@ -198,7 +199,6 @@ class Omt2Mzn():
     def write_stack_lex(self,var_dict,asserts_list,asserts_soft_list,commands_list,out_file):
         out_file=out_file.replace(".mzn","l.mzn")
         file_out=open(out_file,"w")
-        file_out.write("include \"globals.mzn\";\n")
         file_out.write("include \"minisearch.mzn\";\n")
         print("writing variables")
         self.write_list_variables(var_dict,file_out)
@@ -213,7 +213,6 @@ class Omt2Mzn():
     def write_commands_lex(self,commands_list,var_dict,file_out):
         var_list=[]
         var_list_type=set() #if just one type rescued from the maximize,otherwise use to2float
-        flag_change=0
         mgr = get_env()._formula_manager
 
         for (name,args) in commands_list: #only maximize or minimize -> manage the lower and the upper
@@ -221,7 +220,7 @@ class Omt2Mzn():
             index=args_inner.index(":id") #taking the id value -> equal to the variable
             opt_var=args_inner[index+1]
             var_list_type.add(var_dict[opt_var][0]) 
-            var_list.append(opt_var)
+
         if len(var_list_type)==1:
             final_type=var_list_type.pop()
             if "BV" in str(final_type):
@@ -230,105 +229,82 @@ class Omt2Mzn():
                 final_type="float"
             elif "Int" == str(final_type):
                 final_type="int"
-        elif len(var_list_type)==2 and "int" in var_list and "BV" in var_list_type:
-            final_type="int"
         else:
-            final_type="float"
-            var_list2=[] #add opt_variables to change their type
-            flag_change=1
-            for var_name in var_list:
-                type_to_check = str(var_dict[var_name][0])
-                if type_to_check=="Int" or type_to_check=="int" or "BV" in type_to_check:
-                    opt_var_name=var_name+"_f"
-                    file_out.write("var float: "+opt_var_name+";\n")
-                    var_list2.append(opt_var_name)
-                else:
-                    var_list2.append(var_name)             
-            var_list=var_list2
+            raise MultiTypeLexErr("MultiType Lexicographic optimization is not supported")
 
         for (name,args) in commands_list: #only maximize or minimize -> manage the lower and the upper
             upper=None
             lower=None
             args_inner=args[1]
             index=args_inner.index(":id") #taking the id value -> equal to the variable
-            opt_var=args_inner[index+1]
+            opt_var=args_inner[index+1] #temp variable (d'appoggio) to maximize or minimize
+            objective_arg = args[0] #FNODE type -> parsed with get_expression
+            
             if ":upper" in args_inner:
                 index=args_inner.index(":upper")
                 upper=args_inner[index+1] #Fnode
-            if ":lower" in args:
+            if ":lower" in args_inner:
                 index=args_inner.index(":lower")
                 lower=args_inner[index+1] #Fnode
             try:
                 signed=args_inner.index(":signed") 
             except ValueError:
-                signed=-1
-        
-            objective_arg = args[0]
+                signed=-1  
             if objective_arg.size() == 1: #name of a variable
-                objective_arg=mgr._create_symbol(str(args[0]),var_dict[str(args[0])][0])
-            '''
-            if "BV" in str(var_dict[opt_var][0]):                   #TODO: change toNUM for the tmp variable
-                file_out.write("var int: "+opt_var+"_BV2INT"+";\n") #TODO: change for lex int no float 
-                opt_symbol_int = mgr._create_symbol(opt_var+"_BV2INT",typename=tp._IntType()) 
-                opt_symbol_bv = mgr._create_symbol(opt_var,var_dict[opt_var][0])
-                assignment_bv = (opt_symbol_bv,objective_arg)
-                assignment_toNum = mgr.Equals(opt_symbol_int,opt_symbol_bv)
-                file_out.write("constraint ("+self.serializer.serialize(assignment_bv)+");\n") #bv = objective in bv
-                str_to_write = self.serializer.serialize(assignment_toNum)
-                if signed == -1:
-                    str_to_write = re.sub(r"(.*) = (.*)",r"\1 = toNum(\2)",str_to_write)
-                else:
-                    str_to_write = re.sub(r"(.*) = (.*)",r"\1 = toNumS(\2)",str_to_write)
-                if name == "maximize":
-                    str_to_write = re.sub(r"(.*) = (.*)",r"\1 = -(\2)",str_to_write)
-                    file_out.write("constraint ("+str_to_write+");\n")
-                else:
-                    file_out.write("constraint ("+str_to_write+");\n") # bv2int = bv 
-                if flag_change and opt_var+"_f" in var_list:
-                    file_out.write("constraint("+opt_var+"_f=int2float("+opt_var+"_BV2INT));\n")
-                else:
-                    index_optvarBV=var_list.index(opt_var)
-                    var_list.remove(opt_var)
-                    var_list.insert(index_optvarBV,opt_var+"_BV2INT")
-            '''
-            else: 
-                opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
-                if name=="maximize":
-                    objective_arg_neg = mgr.Minus(mgr.Int(0),objective_arg)
-                    assignment = mgr.Equals(opt_symbol,objective_arg_neg)
-                else:
-                    assignment = mgr.Equals(opt_symbol,objective_arg)
-                file_out.write("constraint ("+self.serializer.serialize(assignment)+");\n")  
-                if flag_change and opt_var+"_f" in var_list:
-                        file_out.write("constraint("+opt_var+"_f=int2float("+opt_var+"));\n")
+                objective_arg=mgr._create_symbol(str(args[0]),typename=var_dict[str(args[0])][0])
 
+            opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
+            assignment = mgr.Equals(opt_symbol,objective_arg)
+            file_out.write("constraint ("+self.serializer.serialize(assignment,daggify=False)+");\n")    
 
+            opt_symbol_lex = mgr._create_symbol(opt_var+"_lex",var_dict[opt_var][0])
+            lex_type = "int" if "BV" in str(var_dict[opt_var][0]) else str(var_dict[opt_var][0]).lower()
+            file_out.write("var %s:%s;\n "%(lex_type,opt_symbol_lex))
+            if name=="maximize" and "BV" not in str(var_dict[opt_var][0]):
+                opt_symbol_tmp = mgr.Minus(mgr.Int(0),opt_symbol)
+                assignment = mgr.Equals(opt_symbol_lex,opt_symbol_tmp)
+                file_out.write("constraint ("+self.serializer.serialize(assignment,daggify=False)+");\n") 
+            elif name=="maximize" and "BV" in str(var_dict[opt_var][0]) and signed==-1: #maximization BV8 unisgned -> max value is 255 -> minimize 255-opt_symbol
+                file_out.write("constraint( %s = %s - %s );\n"%(opt_symbol_lex,pow(2,opt_symbol.bv_width())-1,opt_symbol))
+            elif name=="maximize" and "BV" in str(var_dict[opt_var][0]) and signed>-1: #maximization BV8 signed -> maxvalue is 127 -> minimize 127-opt_symbol 
+                file_out.write("constraint( %s = %s - (-%s*((%s div %s) mod 2))+sum([pow(2,i)*((%s div pow(2,i)) mod 2)| i in 0..%s-1] ));\n"
+                               %(opt_symbol_lex,pow(2,opt_symbol.bv_width()-1)-1,pow(2,opt_symbol.bv_width()-1),opt_symbol,pow(2,opt_symbol.bv_width()-1),opt_symbol,opt_symbol.bv_width()-1))
+            elif name=="minimize" and "BV" in str(var_dict[opt_var][0]) and signed>-1: #maximization BV8 signed -> maxvalue is 127 -> minimize 127-opt_symbol
+                file_out.write("constraint( %s = (-%s*((%s div %s) mod 2))+sum([pow(2,i)*((%s div pow(2,i)) mod 2)| i in 0..%s-1] ));\n"
+                               %(opt_symbol_lex,pow(2,opt_symbol.bv_width()-1),opt_symbol,pow(2,opt_symbol.bv_width()-1),opt_symbol,opt_symbol.bv_width()-1))
+            else:
+                assignment = mgr.Equals(opt_symbol,opt_symbol_lex)
+                file_out.write("constraint ("+self.serializer.serialize(assignment,daggify=False)+");\n")  
             if upper is not None:
                 if "BV" in str(upper.get_type()):
+                    file_out.write("constraint(%s >= %s /\ %s <= %s);\n"%(opt_symbol,0,opt_symbol,pow(2,opt_symbol.bv_width())-1))
                     if signed>=0:
                         less_than = mgr.BVSLE(opt_symbol,upper)
                     else:
                         less_than = mgr.BVULE(opt_symbol,upper)
+                    file_out.write("constraint ("+self.serializer.serialize(less_than)+");\n")
                 else:
                     less_than = mgr.LE(opt_symbol,upper)
-                file_out.write("constraint ("+self.serializer.serialize(less_than)+");\n")
-            if lower is not None:
+                    file_out.write("constraint ("+self.serializer.serialize(less_than,daggify=False)+");\n")
+            if lower is not None:       
                 if "BV" in str(lower.get_type()):
+                    file_out.write("constraint(%s >= %s /\ %s <= %s);\n"%(opt_symbol,0,opt_symbol,pow(2,opt_symbol.bv_width())-1))
                     if signed>=0:
                         less_than = mgr.BVSLE(lower,opt_symbol)
                     else:
                         less_than = mgr.BVULE(lower,opt_symbol)
+                    file_out.write("constraint ("+self.serializer.serialize(less_than)+");\n")
                 else:
                     less_than = mgr.LE(lower,opt_symbol)
-                file_out.write("constraint ("+self.serializer.serialize(less_than)+");\n")
-        
+                    file_out.write("constraint ("+self.serializer.serialize(less_than,daggify=False)+");\n")
+            var_list.append(opt_symbol_lex)
         file_out.write("array[int] of var "+str(final_type)+": obj_array;\n")
         file_out.write("obj_array=[")
-        file_out.write(var_list[0])
+        file_out.write(str(var_list[0]))
         for el in var_list[1:]:
-            file_out.write(","+el)
+            file_out.write(","+str(el))
         file_out.write("];\n")
-        file_out.write("%use minisearch\n")
+        file_out.write("%using minisearch\n")
         file_out.write("solve search minimize_lex_pers(obj_array);\n")
         
 
@@ -336,9 +312,9 @@ class Omt2Mzn():
         ##Minisearch Paper Implementation
         file_out.write("""\n
     function ann : minimize_lex_pers(array[int] of var """+str(final_type)+""" : objs) =
-        next() /\ commit() /\ print() /\
+        next() /\ commit() /\ print() /\\
         repeat( scope(
-            post(lex_less(objs, [sol(objs[i]) | i in index_set(objs)])) /\
+            post(lex_less(objs, [sol(objs[i]) | i in index_set(objs)])) /\\
             if next() then commit() /\ print() else break endif ) );
     """)
 
@@ -381,32 +357,34 @@ class Omt2Mzn():
             opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
             assignment = mgr.Equals(opt_symbol,objective_arg)
             common_lines.append("constraint ("+self.serializer.serialize(assignment,daggify=False)+");\n")
+            #opt_Var and opt_symbol are the same
             if upper is not None:
                 if "BV" in str(upper.get_type()):
                     if signed>=0:
                         less_than = mgr.BVSLE(opt_symbol,upper)
                     else:
                         less_than = mgr.BVULE(opt_symbol,upper)
+                    unique_upper.append("constraint ("+self.serializer.serialize(less_than)+");\n")
                 else:
                     less_than = mgr.LE(opt_symbol,upper)
-                unique_upper.append("constraint ("+self.serializer.serialize(less_than)+");\n")#TODO:
+                    unique_upper.append("constraint ("+self.serializer.serialize(less_than,daggify=False)+");\n")
             else:
-                unique_upper.append("")
+                unique_upper.append(" ")
             if lower is not None:
                 if "BV" in str(lower.get_type()):
                     if signed>=0:
                         less_than = mgr.BVSLE(lower,opt_symbol)
                     else:
                         less_than = mgr.BVULE(lower,opt_symbol)
+                    unique_lower.append("constraint ("+self.serializer.serialize(less_than)+");\n")
                 else:
                     less_than = mgr.LE(lower,opt_symbol)
-                unique_lower.append("constraint ("+self.serializer.serialize(less_than)+");\n")#TODO:
+                    unique_lower.append("constraint ("+self.serializer.serialize(less_than,daggify=False)+");\n")
             else:
-                unique_lower.append("")
+                unique_lower.append(" ")
         for (name,args) in commands_list:
             i+=1
             file_out=open(out_file.replace(".mzn","_b"+str(i))+".mzn","w")
-            file_out.write("include \"globals.mzn\";\n")
             print("writing variables")
             self.write_list_variables(var_dict,file_out)
             print("writing assertions")
@@ -421,6 +399,7 @@ class Omt2Mzn():
             args_inner=args[1]
             index=args_inner.index(":id")
             opt_var=args_inner[index+1]
+            opt_symbol = mgr._create_symbol(opt_var,var_dict[opt_var][0])
             try:
                 signed=args_inner.index(":signed") 
             except ValueError:
@@ -429,7 +408,7 @@ class Omt2Mzn():
                 if "BV" in str(var_dict[opt_var][0]):
                     file_out.write("constraint(%s >= %s /\ %s <= %s);\n"%(opt_symbol,0,opt_symbol,pow(2,opt_symbol.bv_width())-1))
                     if signed!=-1:
-                        file_out.write("solve maximize (-%s*((%s div %s) mod 2))+sum([pow(2,i)*((%s div pow(2,i)) mod 2)| i in 0..%s]);\n"
+                        file_out.write("solve maximize (-%s*((%s div %s) mod 2))+sum([pow(2,i)*((%s div pow(2,i)) mod 2)| i in 0..%s-1]);\n"
                                                         %(pow(2,opt_symbol.bv_width()-1),opt_symbol,pow(2,opt_symbol.bv_width()-1),opt_symbol,opt_symbol.bv_width()-1))
                     else:
                         #bound = mgr.And(mgr.BVULE(opt_symbol,mgr.BV(pow(2,opt_symbol.bv_width())-1,width=opt_symbol.bv_width())),mgr.BVUGE(opt_symbol,mgr.BV(0,width=opt_symbol.bv_width())))
@@ -441,7 +420,7 @@ class Omt2Mzn():
                 if "BV" in str(var_dict[opt_var][0]):
                     file_out.write("constraint(%s >= %s /\ %s <= %s);\n"%(opt_symbol,0,opt_symbol,pow(2,opt_symbol.bv_width())-1))
                     if signed!=-1:
-                        file_out.write("solve minimize (-%s*((%s div %s) mod 2))+sum([pow(2,i)*((%s div pow(2,i)) mod 2)| i in 0..%s]);\n"
+                        file_out.write("solve minimize (-%s*((%s div %s) mod 2))+sum([pow(2,i)*((%s div pow(2,i)) mod 2)| i in 0..%s-1]);\n"
                                                         %(pow(2,opt_symbol.bv_width()-1),opt_symbol,pow(2,opt_symbol.bv_width()-1),opt_symbol,opt_symbol.bv_width()-1))
                     else:
                         #bound = mgr.And(mgr.BVULE(opt_symbol,mgr.BV(pow(2,opt_symbol.bv_width())-1,width=opt_symbol.bv_width())),mgr.BVUGE(opt_symbol,mgr.BV(0,width=opt_symbol.bv_width())))   
@@ -536,8 +515,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", help="smt2 input file path")
     parser.add_argument("output_file", help="mzn input file path")
-    parser.add_argument("--big_and", action="store_true", default=False, help="if used this option allows to merge all the asserts in only one big assert")
+    parser.add_argument("--big_and", action="store_true",default=False, help="if used this option allows to merge all the asserts in only one big assert")
+    parser.add_argument("--max_int_bit_size",default=32,choices=[32,64,128],help="""define the size of the integer variable used by the mzn solver.\n
+                                                                                                Is useful for the BV problems.\n
+                                                                                                The default values is 32. The possible values are 32,64,128""")
     args = parser.parse_args()
-    parser=Omt2Mzn(args.input_file,args.output_file,args.big_and)
+    parser=Omt2Mzn(args.input_file,args.output_file,args.big_and,args.max_int_bit_size)
     parser.startParsing()
     

@@ -36,18 +36,13 @@ class HRPrinter(TreeWalker):
     E.g., Implies(And(Symbol(x), Symbol(y)), Symbol(z))  ~>   '(x * y) -> z'
     """
 
-    def __init__(self, stream, id, env=None):
+    def __init__(self, stream,env=None):
         TreeWalker.__init__(self, env=env)
         self.stream = stream
         self.write = self.stream.write
         self.fv=[]
         self.stack_subf=[]
-        self.bv_sum=[]
-        self.id=id
     
-    def getId(self):
-        #self.id+=1
-        return self.id
 
     def printer(self, f,threshold=None):
         """Performs the serialization of 'f'.
@@ -57,7 +52,6 @@ class HRPrinter(TreeWalker):
         printed instead. This is mainly used for debugging.
         """
         self.walk(f,threshold=None)
-        return self.bv_sum
                 
 
     def walk_threshold(self, formula):
@@ -185,17 +179,12 @@ class HRPrinter(TreeWalker):
         self.write("%d)" % formula.bv_extend_step())
 
     def walk_bv_add(self,formula):
-        """ old sytle
         self.write("sumBV(")
         yield formula.arg(0)
         self.write(",")
         yield formula.arg(1)
         self.write(")")
-        """
-        self.id+=1
-        nameR = "R"+str(self.id)
-        self.write(nameR)
-        self.bv_sum.append((nameR,[formula.arg(0),formula.arg(1)]))
+
 
 
 
@@ -406,7 +395,7 @@ class HRPrinter(TreeWalker):
 
 class SmtDagPrinter(DagWalker):
     
-    def __init__(self, stream,flag_bv, id,bv_dict={},template="tmp_%d"):
+    def __init__(self,max_int_bit_size,stream,template="tmp_%d"):
         DagWalker.__init__(self, invalidate_memoization=True)
         self.stream = stream
         self.write = self.stream.write
@@ -415,10 +404,7 @@ class SmtDagPrinter(DagWalker):
         self.template = template
         self.names = None
         self.mgr = get_env().formula_manager
-        self.bv_sum=[] #Try to implement it as a dictionary
-        self.bv_sum_dict={}
-        self.id=id
-        self.bv_max_size=20
+        self.max_int_bit_size=max_int_bit_size
 
     def _push_with_children_to_stack(self, formula, **kwargs):
         """Add children to the stack."""
@@ -440,13 +426,10 @@ class SmtDagPrinter(DagWalker):
         self.openings = 0
         self.name_seed = 0
         self.names = set(quote(x.symbol_name()) for x in f.get_free_variables())
-
         key = self.walk(f)
         self.write(key)
-        return self.bv_sum
     
-    def getId(self):
-        return self.id
+
 
     def _new_symbol(self):
         while (self.template % self.name_seed) in self.names:
@@ -475,7 +458,7 @@ class SmtDagPrinter(DagWalker):
             self.write(" not (")
             self.write(args[0])
             self.write(")")
-            self.write(" )} in")
+            self.write(" )} in \n")
         else:
             self.write(args[0])
             for s in args[1:]:
@@ -680,7 +663,7 @@ class SmtDagPrinter(DagWalker):
                              var int:%s_args2 = if %s >= %s then %s-%s else %s endif;
                              var bool:%s = (%s_args1 < %s_args2)  
                         } in  """%(sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),args[0],
-                                   sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),args[0],
+                                   sym,args[1],str(pow(2,size-1)),args[1],str(pow(2,size)),args[1],
                                    sym,sym,sym))
         return sym
 
@@ -692,7 +675,7 @@ class SmtDagPrinter(DagWalker):
                              var int:%s_args2 = if %s >= %s then %s-%s else %s endif;
                              var bool:%s = (%s_args1 <= %s_args2)  
                         } in  """%(sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),args[0],
-                                   sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),args[0],
+                                   sym,args[1],str(pow(2,size-1)),args[1],str(pow(2,size)),args[1],
                                    sym,sym,sym))
         return sym
 
@@ -721,9 +704,9 @@ class SmtDagPrinter(DagWalker):
         self.write(""" let {  var int:%s_args1 = if %s>=%s then %s-%s+%s else %s endif;
                               var int:%s_ris =  %s_args1 div pow(2,%s);
                               var int:%s = if %s<%s  then %s_ris else sum([pow(2,i)*(((%s_ris+%s) div pow(2,i)) mod 2)|i in 0..%s]) endif;
-                            } in\n"""%(sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),str(pow(2,31)),args[0], 
+                            } in\n"""%(sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),str(pow(2,self.max_int_bit_size-1)),args[0], 
                                       sym,sym,args[1],
-                                      sym,args[0],str(pow(2,size-1)),sym,sym,str(pow(2,29)+pow(2,30)+pow(2,31)+pow(2,size)),size-1))
+                                      sym,args[0],str(pow(2,size-1)),sym,sym,str(pow(2,self.max_int_bit_size-3)+pow(2,self.max_int_bit_size-2)+pow(2,self.max_int_bit_size-1)+pow(2,size)),size-1))
         return sym
 
 
@@ -953,11 +936,10 @@ class SmtDagPrinter(DagWalker):
 
 class MZNPrinter(object):
     """Return the serialized version of the formula as a string."""
-    def __init__(self, environment=None):
+    def __init__(self,max_int_bit_size,environment=None):
         self.environment = environment
         self.last_index=0
-        self.last_id=0
-        self.bv_dict={}
+        self.max_int_bit_size=max_int_bit_size
 
     def serialize(self,formula,daggify=True,output_file=None):
         """Returns a string with the human-readable version of the formula.
@@ -965,21 +947,18 @@ class MZNPrinter(object):
         'printer' is the printer to call to perform the serialization.
         'threshold' is the thresholding value for the printing function.
         """
-        bv_sum=[]
         buf = cStringIO()
         if daggify:
-            p = SmtDagPrinter(buf,self.last_id,self.bv_dict)
+            p = SmtDagPrinter(self.max_int_bit_size,buf)
         else:
-            p = HRPrinter(buf,self.last_id)
+            p = HRPrinter(buf)
 
-        bv_sum=p.printer(formula)
+        p.printer(formula)
         res=buf.getvalue()
         if output_file is None:
             return res
         else:
             output_file.write("constraint ("+res+");\n")
-            self.last_id=p.getId()
-            self.last_index=len(bv_sum)
         buf.close()
 
 #EOC MZNPrinter
