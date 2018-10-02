@@ -227,10 +227,12 @@ class HRPrinter(TreeWalker):
         self.write(" endif ")
     
     def walk_forall(self, formula):
-        return self.walk_quantifier("forall ", ", ", " . ", formula)
+        #return self.walk_quantifier("forall ", ", ", " . ", formula)
+        raise NotImplementedErr("The forall operator cannot be translated into Mzn")
 
     def walk_exists(self, formula):
-        return self.walk_quantifier("exists ", ", ", " . ", formula)
+        #return self.walk_quantifier("exists ", ", ", " . ", formula)
+        raise NotImplementedErr("The exists operator cannot be translated into Mzn")
 
     def walk_toreal(self, formula):
         #self.write("ToReal(")
@@ -562,8 +564,7 @@ class SmtDagPrinter(DagWalker):
 
     def walk_bv_add(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1 
-        typeF=str(formula.get_type()).lower()       
+        self.openings += 1       
         size=formula.bv_width()  
         self.write("""let{ var int:%s = (%s+%s) mod %s;
                         } in\n"""%(sym,args[0],args[1],pow(2,size)))
@@ -571,23 +572,21 @@ class SmtDagPrinter(DagWalker):
 
     def walk_bv_sub(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
+        self.openings += 1       
         size=formula.bv_width()   
         self.write(""" let { var int:%s_args1 = if %s >= %s then %s-%s else %s endif;
                             var int:%s_args2 = if %s >= %s then %s-%s else %s endif;
-                            var int:%s_ris = (%s_args1 - %s_args2);
+                            var int:%s_ris = (%s_args1 - %s_args2) mod %s;
                             var int:%s = if %s_ris < 0 then %s_ris+%s else %s_ris endif;
                        } in\n""" %(sym,args[0],str(pow(2,size-1)),args[0],pow(2,size),args[0],
                                   sym,args[1],str(pow(2,size-1)),args[1],pow(2,size),args[1],
-                                  sym,sym,sym,
+                                  sym,sym,sym,str(pow(2,size)),
                                   sym,sym,sym,str(pow(2,size)),sym))
         return sym
 
     def walk_bv_neg(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
+        self.openings += 1   
         size=formula.bv_width()   
         self.write(""" let { var int:%s_args1 = if %s >= %s then %s-%s else %s endif;
                             var int:%s_ris = (0 - %s_args1);
@@ -698,8 +697,7 @@ class SmtDagPrinter(DagWalker):
 
     def walk_bv_ashr(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
+        self.openings += 1    
         size=formula.bv_width() 
         self.write(""" let {  var int:%s_args1 = if %s>=%s then %s-%s+%s else %s endif;
                               var int:%s_ris =  %s_args1 div pow(2,%s);
@@ -712,8 +710,7 @@ class SmtDagPrinter(DagWalker):
 
     def walk_bv_sdiv(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
+        self.openings += 1       
         size=formula.bv_width()   
         self.write(""" let { var int:%s_args1 = if %s >= %s then %s-%s else %s endif;
                              var int:%s_args2 = if %s >= %s then %s-%s else %s endif;
@@ -727,8 +724,7 @@ class SmtDagPrinter(DagWalker):
 
     def walk_bv_srem(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
+        self.openings += 1       
         size=formula.bv_width()  #(sign follows dividend)
         self.write(""" let { var int:%s_args1 = if %s >= %s then %s-%s else %s endif;
                              var int:%s_args2 = if %s >= %s then %s-%s else %s endif;
@@ -799,12 +795,15 @@ class SmtDagPrinter(DagWalker):
         return '"' + formula.constant_value() + '"'
 
     def walk_forall(self, formula, args, **kwargs):
-        return self._walk_quantifier("forall", formula, args)
+        #return self._walk_quantifier("forall", formula, args)
+        raise NotImplementedErr("The forall operator cannot be translated into Mzn")
 
     def walk_exists(self, formula, args, **kwargs):
-        return self._walk_quantifier("exists", formula, args)
+        #return self._walk_quantifier("exists", formula, args)
+        raise NotImplementedErr("The exists operator cannot be translated into Mzn")
 
     def _walk_quantifier(self, operator, formula, args):
+        '''
         assert args is None
         assert len(formula.quantifier_vars()) > 0
         sym = self._new_symbol()
@@ -823,6 +822,8 @@ class SmtDagPrinter(DagWalker):
 
         self.write(")))")
         return sym
+        '''
+        raise NotImplementedErr("The quantifier cannot be translated into Mzn")
 
     def walk_bv_extract(self, formula, args, **kwargs):
         assert formula is not None
@@ -872,12 +873,15 @@ class SmtDagPrinter(DagWalker):
         return sym
 
     def walk_str_length(self, formula, args, **kwargs):
-        return "(str.len %s)" % args[0]
+        #return "(str.len %s)" % args[0])
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_charat(self,formula, args,**kwargs):
-        return "( str.at %s %s )" % (args[0], args[1])
+        #return "( str.at %s %s )" % (args[0], args[1])
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_concat(self, formula, args, **kwargs):
+        '''
         sym = self._new_symbol()
         self.openings += 1
         self.write("(let ((%s (%s" % (sym, "str.++ " ))
@@ -886,32 +890,43 @@ class SmtDagPrinter(DagWalker):
             self.write(s)
         self.write("))) ")
         return sym
+        '''
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_contains(self,formula, args, **kwargs):
-        return "( str.contains %s %s)" % (args[0], args[1])
+        #return "( str.contains %s %s)" % (args[0], args[1])
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_indexof(self,formula, args, **kwargs):
-        return "( str.indexof %s %s %s )" % (args[0], args[1], args[2])
+        #return "( str.indexof %s %s %s )" % (args[0], args[1], args[2])
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_replace(self,formula, args, **kwargs):
-        return "( str.replace %s %s %s )" % (args[0], args[1], args[2])
+        #return "( str.replace %s %s %s )" % (args[0], args[1], args[2])
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_substr(self,formula, args,**kwargs):
-        return "( str.substr %s %s %s)" % (args[0], args[1], args[2])
+        #return "( str.substr %s %s %s)" % (args[0], args[1], args[2])
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_prefixof(self,formula, args,**kwargs):
-        return "( str.prefixof %s %s )" % (args[0], args[1])
+        #return "( str.prefixof %s %s )" % (args[0], args[1])
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_suffixof(self,formula, args, **kwargs):
-        return "( str.suffixof %s %s )" % (args[0], args[1])
+        #return "( str.suffixof %s %s )" % (args[0], args[1])
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_to_int(self,formula, args, **kwargs):
-        return "( str.to.int %s )" % args[0]
+        #return "( str.to.int %s )" % args[0]
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_int_to_str(self,formula, args, **kwargs):
-        return "( int.to.str %s )" % args[0]
+        #return "( int.to.str %s )" % args[0]
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_array_value(self, formula, args, **kwargs):
+        '''
         sym = self._new_symbol()
         self.openings += 1
         self.write("(let ((%s " % sym)
@@ -931,6 +946,8 @@ class SmtDagPrinter(DagWalker):
             self.write(")")
         self.write("))")
         return sym
+        '''
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
 
 
@@ -963,3 +980,5 @@ class MZNPrinter(object):
 
 #EOC MZNPrinter
 
+class NotImplementedErr(StandardError):
+    pass
