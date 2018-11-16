@@ -714,7 +714,7 @@ class SmtDagPrinter(DagWalker):
         size=formula.bv_width()   
         self.write(""" let { var int:%s_args1 = if %s >= %s then %s-%s else %s endif;
                              var int:%s_args2 = if %s >= %s then %s-%s else %s endif;
-                             var int:%s_ris = (%s_args1 div %s_args2);
+                             var int:%s_ris = (%s_args1 div %s_args2);  
                              var int:%s = if %s_ris < 0 then %s_ris+%s else %s_ris endif;
                         } in\n""" %(sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),args[0],
                                    sym,args[1],str(pow(2,size-1)),args[1],str(pow(2,size)),args[1],
