@@ -14,7 +14,7 @@ A python parser omt2mzn
 '''
 
 from pyomt.smtlib.parser import SmtLib20Parser
-from pyomt.printers_mzn import MZNPrinter
+from pyomt.printers_mzn_2father import MZNPrinter
 from pyomt.environment import get_env
 import argparse
 import pyomt.typing as tp
