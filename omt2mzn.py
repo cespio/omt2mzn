@@ -1,20 +1,12 @@
 #!/usr/bin/env python
-
 '''
-Francesco Contaldo 2018 
-A python parser omt2mzn
-#TODO: parte di asset-soft BV, passing her variables_dict.keys()
-#TODO: completare il parsing
-#TODO: manage the sign      
-# 
-# 
-
-#TODO: aggiungere l'opzione per lexicograsphic
-#TODO: verificare che operandi mancano da complentare            
+Francesco Contaldo, 2018 
+DISI University of Trento
+A Python Parser from OMT2MZN 
 '''
 
 from pyomt.smtlib.parser import SmtLib20Parser
-from pyomt.printers_mzn_2father import MZNPrinter
+from pyomt.printers_mzn import MZNPrinter
 from pyomt.environment import get_env
 import argparse
 import pyomt.typing as tp
@@ -28,8 +20,8 @@ class MultiTypeLexErr(StandardError):
 
 class Omt2Mzn():
     #if flag bv = true bv array rap
-    def __init__(self,file_in,file_out,flag_bigand,max_int_bit_size):
-        self.serializer=MZNPrinter(max_int_bit_size)
+    def __init__(self,file_in,file_out,flag_bigand,max_int_bit_size,printer_opt):
+        self.serializer=MZNPrinter(printer_opt,max_int_bit_size)
         self.input_file=file_in
         self.output_file=file_out
         self.flag_bigand=flag_bigand
@@ -455,7 +447,7 @@ class Omt2Mzn():
     def write_assertions(self,asserts_list,file_out,var_dict):
         '''
             Write the list of assertion
-            reference: https://github.com/hakank/hakank/blob/master/minizinc/bit_vector1.mzn
+            
         '''
         if self.flag_bigand==True: #necessary bigand
             mgr = get_env()._formula_manager
@@ -514,12 +506,14 @@ class Omt2Mzn():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", help="smt2 input file path")
-    parser.add_argument("output_file", help="mzn input file path")
+    parser.add_argument("output_file", help="mzn output file path")
     parser.add_argument("--big_and", action="store_true",default=False, help="if used this option allows to merge all the asserts in only one big assert")
-    parser.add_argument("--max_int_bit_size",default=32,choices=[32,64,128],help="""define the size of the integer variable used by the mzn solver.\n
+    parser.add_argument("--max_int_bit_size",type=int,default=32,choices=[32,64],help="""define the size of the integer variable used by the mzn solver.\n
                                                                                                 Is useful for the BV problems.\n
-                                                                                                The default values is 32. The possible values are 32,64,128""")
+                                                                                                The default values is 32. The possible values are 32,64""")
+    parser.add_argument("--printer_opt",type=int,default=0,choices=[0,1],help="""0: Default daggify print, it creates a new scopes for every subformula\n
+                                                                        1: 2 Fathers daggify print, it creates a labeling exclusively for every boolean subformula with 2 fathers in the formula DAG""")
     args = parser.parse_args()
-    parser=Omt2Mzn(args.input_file,args.output_file,args.big_and,args.max_int_bit_size)
+    parser=Omt2Mzn(args.input_file,args.output_file,args.big_and,args.max_int_bit_size,args.printer_opt)
     parser.startParsing()
     
