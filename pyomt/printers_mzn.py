@@ -938,16 +938,16 @@ class DagWalkerFathers(DagWalker):
         self.write = self.stream.write
         self.openings = 0
         self.name_seed = 0
-        self.memoization = dict_fathers
+        self.memoization = copy.copy(dict_fathers)
         self.template = template
         self.names = None
         self.mgr = get_env().formula_manager
         self.max_int_bit_size=max_int_bit_size
-        #print "MEMO",self.memoization
+    
 
+    ### MODIFIY THE DAGWALKER:
     def _push_with_children_to_stack(self, formula, **kwargs):
         """Add children to the stack."""
-
         # Deal with quantifiers
         if formula.is_quantifier():
             # 1. We invoke the relevant function (walk_exists or
@@ -959,7 +959,41 @@ class DagWalkerFathers(DagWalker):
             key = self._get_key(formula, **kwargs)
             self.memoization[key] = res
         else:
-            DagWalker._push_with_children_to_stack(self, formula, **kwargs)
+            self.stack.append((True, formula))
+            for s in self._get_children(formula):
+                # Add only if not memoized already
+                key = self._get_key(s, **kwargs)
+                if key not in self.memoization or self.memoization[key]=="":
+                    self.stack.append((False, s))
+
+    def _compute_node_result(self, formula, **kwargs):
+        """Apply function to the node and memoize the result.
+
+        Note: This function assumes that the results for the children
+              are already available.
+        """
+        key = self._get_key(formula, **kwargs)
+        if key not in self.memoization or self.memoization[key]=="":
+            try:
+                f = self.functions[formula.node_type()]
+            except KeyError:
+                f = self.walk_error
+            args = [self.memoization[self._get_key(s, **kwargs)] \
+                    for s in self._get_children(formula)]
+            self.memoization[key] = f(formula, args=args, **kwargs)
+        else:
+            pass
+
+    def walk(self, formula, **kwargs):
+        if formula in self.memoization and self.memoization[formula]!="":
+            return self.memoization[formula]
+
+        res = self.iter_walk(formula, **kwargs)
+
+        if self.invalidate_memoization:
+            self.memoization.clear()
+        return res
+
 
     def printer(self, f):
         self.openings = 0
@@ -968,6 +1002,7 @@ class DagWalkerFathers(DagWalker):
         #print "formula",f,"con mem",self.memoization,"buffer",self.stream.getvalue()
         key = self.walk(f)
         self.write(key)
+        
     
     def _new_symbol_bv(self,bv_template):
         while (bv_template % self.name_seed) in self.names:
@@ -990,8 +1025,7 @@ class DagWalkerFathers(DagWalker):
             str_out=str_out+args[2]
             str_out = str_out + " endif "
         elif len(args)==1 and (operator=="not" or operator=="int2float"):
-            str_out = str_out + " "
-            str_out = str_out + " not ("
+            str_out = str_out + "not ("
             str_out=str_out+args[0]
             str_out = str_out + ")"
         else:
@@ -1430,20 +1464,23 @@ class MZNPrinter(object):
         self.last_index=0
         self.max_int_bit_size=max_int_bit_size
         self.printer_selection=printer_selection #0 simple daggify, 1 2fathers labeling
+    
 
     def get_fathers(self,formula):
         cnt = 0
-        fathers = collections.OrderedDict()
-        seen = set()
+        fathers = {}
         q = [formula]
+        visto_set=set()
         while q:
             e = q.pop()
-            seen.add(e)
             for s in e.args():
-                    if s.get_type()==BOOL and s in seen and s not in fathers and len(s.args())>=2:
-                        fathers[s] = "tmp_"+str(cnt)
-                        cnt+=1
+                if s not in visto_set:
                     q.append(s)
+                    visto_set.add(s)
+                else:
+                    if s not in fathers and len(s.args())>=2: #and s.get_type()==BOOL and len(s.args())>=2:
+                        fathers[s]="tmp_"+str(cnt)
+                        cnt+=1 
         return fathers
 
 
@@ -1455,38 +1492,51 @@ class MZNPrinter(object):
             else:
                 p = HRPrinter(buf)
             p.printer(formula)
-            res=buf.getvalue()
+            res_f=buf.getvalue()
         else:
+            print "Inizio a costruire dict_f"
             dict_f = self.get_fathers(formula)
             buf = cStringIO()
             str_let=""
             str_let_list=[]
-            print dict_f
             if dict_f:
-                k=dict_f.keys()
-                dict_f_tmp=copy.copy(dict_f)
-                for el in k:
-                    dict_f.pop(el)
-                    buf = cStringIO()
-                    p = DagWalkerFathers(self.max_int_bit_size,buf,dict_f,boolean_invalidate=True)
-                    p.printer(el)
-                    dict_f=copy.copy(dict_f_tmp)
-                    str_let_list.append(" var %s : %s =  %s;  \n "%(str(el.get_type()).lower().replace("real","float"),dict_f[el],buf.getvalue()))
-            #temporary
-            if str_let_list:
-                str_let_list.sort(key=lambda x: x.count("tmp"))
-                str_let = "let {\n"+"".join(str_let_list)+"} in \n"
-            print dict_f
-            buf = cStringIO()
-            buf.write(str_let)
-            p = DagWalkerFathers(self.max_int_bit_size,buf,dict_f,boolean_invalidate=False)
-            p.printer(formula)
-            res=buf.getvalue()
+                print "Inizio iterazione di dict_f ->",len(dict_f)
+                p = DagWalkerFathers(self.max_int_bit_size,buf,dict_f,boolean_invalidate=False)
+                for sub_f in dict_f.keys():
+                    label=dict_f[sub_f]
+                    #print label
+                    p.stream=cStringIO()
+                    p.write=p.stream.write
+                    p.memoization[sub_f]=""
+                    p.printer(sub_f)
+                    match = re.match(r"tmp_([0-9]+)",label)
+                    v=-1
+                    if match:
+                        v=int(match.groups(0)[0])
+                    str_let_list.append((" var %s : %s =  %s;  \n "%(str(sub_f.get_type()).lower().replace("real","float"),label,p.stream.getvalue()),v))
+                    p.memoization[sub_f]=label
+                    p.stream.close()
+            if dict_f:
+                str_let_list.sort(key=lambda x: (x[0].count("tmp"),x[1]))
+                str_let = "let {\n"+"".join([x[0] for x in str_let_list])+"} in \n"
+                p.stream=cStringIO()
+                p.write=p.stream.write
+                p.big_formula=True
+                p.printer(formula)
+                res=p.stream.getvalue()
+                p.stream.close()
+            else:
+                buf=cStringIO()
+                p = DagWalkerFathers(self.max_int_bit_size,buf,dict_f,boolean_invalidate=True)
+                p.printer(formula)
+                res=buf.getvalue()
+                buf.close()
+            res_f=str_let+"\n"+res
         if output_file is None:
-            return res
+            return res_f
         else:
-            output_file.write("constraint ("+res+");\n")
-        buf.close()
+            output_file.write("constraint ("+res_f+");\n")
+        
 
 #EOC MZNPrinter
 
