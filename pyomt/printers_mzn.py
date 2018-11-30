@@ -18,6 +18,7 @@
 import re
 import copy
 import collections
+import shortcuts as sh
 from six.moves import cStringIO
 import pyomt.operators as op
 from pyomt.walkers import TreeWalker,DagWalker
@@ -25,6 +26,7 @@ from pyomt.walkers.generic import handles
 from pyomt.utils import quote
 from pyomt.environment import get_env
 from pyomt.constants import is_pyomt_fraction, is_pyomt_integer
+
 from pyomt.typing import BOOL, REAL, INT, BVType, ArrayType, STRING
 
 
@@ -33,7 +35,7 @@ from pyomt.typing import BOOL, REAL, INT, BVType, ArrayType, STRING
 '''
 
 
-class HRPrinter(TreeWalker):
+class TreeMznPrinter(TreeWalker):
     """Performs serialization of a formula in a human-readable way.
 
     E.g., Implies(And(Symbol(x), Symbol(y)), Symbol(z))  ~>   '(x * y) -> z'
@@ -48,59 +50,106 @@ class HRPrinter(TreeWalker):
     
 
     def printer(self, f,threshold=None):
-        """Performs the serialization of 'f'.
-
-        Thresholding can be used to define how deep in the formula to
-        go. After reaching the thresholded value, "..." will be
-        printed instead. This is mainly used for debugging.
-        """
+        """Performs the serialization of 'f' MZN"""
         self.walk(f,threshold=None)
                 
 
     def walk_threshold(self, formula):
         self.write("...")
 
-    def walk_nary(self, formula, ops):
+    def walk_nary(self, formula, operator):
         args = formula.args()
-        if ops==" = " and len(args)==2 and "BV" in str(args[0].get_type()) and "BV" in str(args[1].get_type()):
-            #self.write("bveq(")
-            #yield args[0]
-            #self.write(",")
-            #yield args[1]
-            self.write("(")
+        if operator=="ite":
+            self.write(" if ")
             yield args[0]
-            self.write("=")
+            self.write(" then ")
             yield args[1]
-        else:
-            self.write("(")
-            for s in args[:-1]:
-                yield s
-                self.write(ops)
-            yield args[-1]
-        self.write(")")
-
-    def walk_quantifier(self, op_symbol, var_sep, sep, formula):
-        if len(formula.quantifier_vars()) > 0:
-            self.write("(")
-            self.write(op_symbol)
-            for s in formula.quantifier_vars()[:-1]:
-                yield s
-                self.write(var_sep)
-            yield formula.quantifier_vars()[-1]
-            self.write(sep)
-            yield formula.arg(0)
+            self.write(" else ")
+            yield args[2]
+            self.write(" endif ")
+        elif len(args)==1 and (operator=="not" or operator=="int2float"):
+            self.write(" not (")
+            yield args[0]
             self.write(")")
         else:
-            yield formula.arg(0)
+            self.write("(")
+            yield args[0]
+            for s in args[1:]:
+                self.write(" ")
+                self.write(operator)
+                self.write(" ")
+                yield s
+            self.write(")")
+    
+    def walk_div(self, formula):    
+        typeF=str(formula.get_type()).lower().replace("real","float")
+        if typeF=="float":
+            return self.walk_nary(formula,"/")
+        else:
+            return self.walk_nary(formula,"div")
 
-    def walk_not(self, formula):
-        self.write("(not ")
-        yield formula.arg(0)
+    def walk_pow(self, formula):    
+        args = formula.args()
+        self.write("pow(")
+        yield args[0]
+        self.write(",")
+        yield args[1]
         self.write(")")
 
-    def walk_symbol(self, formula):
-        self.write(quote(formula.symbol_name(), style="'"))
+    def walk_not(self, formula):    return self.walk_nary(formula,"not")
+    def walk_and(self, formula):    return self.walk_nary(formula, "/\\")
+    def walk_or(self, formula):     return self.walk_nary(formula, "\/")
+    def walk_plus(self, formula):   return self.walk_nary(formula, "+")
+    def walk_times(self, formula):  return self.walk_nary(formula, "*")
+    def walk_iff(self, formula):    return self.walk_nary(formula, "<->")
+    def walk_implies(self, formula):return self.walk_nary(formula, "->")
+    def walk_minus(self, formula):  return self.walk_nary(formula, "-")
+    def walk_equals(self, formula): return self.walk_nary(formula, "=") 
+    def walk_le(self, formula):     return self.walk_nary(formula, "<=")
+    def walk_lt(self, formula):     return self.walk_nary(formula, "<")
+    def walk_toreal(self, formula): return self.walk_nary(formula, "int2float")
+    def walk_ite(self, formula):    return self.walk_nary(formula, "ite")
+    ### ----------------- BV ------------------------------------------#
+    def walk_bv_and(self, formula): pass
+    def walk_bv_or(self,formula): pass    
+    def walk_bv_not(self,formula): pass
+    def walk_bv_xor(self, formula): pass
+    def walk_bv_add(self,formula): pass 
+    def walk_bv_sub(self,formula): pass
+    def walk_bv_neg(self, formula): pass
+    def walk_bv_mul(self,formula): pass
+    def walk_bv_concat(self, formula): pass
+    def walk_bv_udiv(self, formula): pass
+    def walk_bv_urem(self, formula): pass
+    def walk_bv_sdiv(self, formula): pass
+    def walk_bv_srem(self, formula): pass
+    def walk_bv_sle(self, formula):  pass
+    def walk_bv_slt(self, formula):  pass
+    def walk_bv_ule(self, formula):  pass
+    def walk_bv_ult(self, formula):  pass
+    def walk_bv_lshl(self, formula):  pass
+    def walk_bv_lshr(self, formula):  pass
+    def walk_bv_ashr(self, formula): pass
+    def walk_bv_extract(self, formula):pass
+    def walk_bv_ror(self, formula): pass
+    def walk_bv_rol(self, formula): pass
+    def walk_bv_zext(self, formula): pass
+    def walk_bv_sext(self, formula): pass
+    def walk_bvlt(self,formula): pass
+    def walk_bvle(self,formula): pass
+    def walk_signed_bvlt(self,formula): pass
+    def walk_signed_bvle(self,formula): pass
+    def walk_bv_comp(self, formula): pass
+    def walk_bv_tonatural(self, formula): pass
+    
 
+    def walk_symbol(self, formula):
+        self.write(quote(formula.symbol_name()))
+
+    def walk_quantifier(self, op_symbol, var_sep, sep, formula):
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
+
+    
     def walk_function(self, formula):
         yield formula.function_name()
         self.write("(")
@@ -132,102 +181,12 @@ class HRPrinter(TreeWalker):
         else:
             self.write("false")
 
-    def walk_bv_constant(self, formula):  #--optimathsat
-        # This is the simplest SMT-LIB way of printing the value of a BV
-        # self.write("(_ bv%d %d)" % (formula.bv_width(),
-        #                             formula.constant_value()))
-        #per ora assumo tutti i bv - unsigned
-        
-        bvsequence=str('{0:0'+str(formula.bv_width())+'b}').format(formula.constant_value())
-        bvsequence_comma = re.sub(r'([0-1])(?!$)', r'\1,',bvsequence)
-        bvsequence_comma_tf = bvsequence_comma.replace("0","false").replace("1","true")
-        self.write("["+bvsequence_comma_tf+"]")
-
-    def walk_algebraic_constant(self, formula):
+    def walk_bv_constant(self, formula): 
         self.write(str(formula.constant_value()))
 
-    def walk_bv_extract(self, formula):
-        self.write("extractBV(")
-        yield formula.arg(0)
-        self.write(",%d,%d)" % (formula.bv_extract_start()+1,
-                                       formula.bv_extract_end()+1))
-
-    def walk_bv_neg(self, formula):
-        self.write("(- ")
-        yield formula.arg(0)
-        self.write(")")
-
-    def walk_bv_ror(self, formula):
-        self.write("(")
-        yield formula.arg(0)
-        self.write(" ROR ")
-        self.write("%d)" % formula.bv_rotation_step())
-
-    def walk_bv_rol(self, formula):
-        self.write("(")
-        yield formula.arg(0)
-        self.write(" ROL ")
-        self.write("%d)" % formula.bv_rotation_step())
-
-    def walk_bv_zext(self, formula):
-        self.write("(")
-        yield formula.arg(0)
-        self.write(" ZEXT ")
-        self.write("%d)" % formula.bv_extend_step())
-
-    def walk_bv_sext(self, formula):
-        self.write("(")
-        yield formula.arg(0)
-        self.write(" SEXT ")
-        self.write("%d)" % formula.bv_extend_step())
-
-    def walk_bv_add(self,formula):
-        self.write("sumBV(")
-        yield formula.arg(0)
-        self.write(",")
-        yield formula.arg(1)
-        self.write(")")
-
-
-
-
+    def walk_algebraic_constant(self, formula):
+        self.write(str(formula.constant_value()))     
     
-    def walk_bvlt(self,formula):
-        self.write("lex_less(")
-        yield formula.arg(0)
-        self.write(",")
-        yield formula.arg(1)
-        self.write(")")
-    
-    def walk_bvle(self,formula):
-        self.write("lex_lesseq(")
-        yield formula.arg(0)
-        self.write(",")
-        yield formula.arg(1)
-        self.write(")")
-    
-    def walk_signed_bvlt(self,formula):
-        self.write("bvslt(")
-        yield formula.arg(0)
-        self.write(",")
-        yield formula.arg(1)
-        self.write(")")
-    
-    def walk_signed_bvle(self,formula):
-        self.write("bvsle(")
-        yield formula.arg(0)
-        self.write(",")
-        yield formula.arg(1)
-        self.write(")")
-     
-    def walk_ite(self, formula): #--optimathsat
-        self.write("if ")
-        yield formula.arg(0)
-        self.write(" then  ")
-        yield formula.arg(1)
-        self.write("  else  ")
-        yield formula.arg(2)
-        self.write(" endif ")
     
     def walk_forall(self, formula):
         #return self.walk_quantifier("forall ", ", ", " . ", formula)
@@ -237,168 +196,58 @@ class HRPrinter(TreeWalker):
         #return self.walk_quantifier("exists ", ", ", " . ", formula)
         raise NotImplementedErr("The exists operator cannot be translated into Mzn")
 
-    def walk_toreal(self, formula):
-        #self.write("ToReal(")
-        yield formula.arg(0)
-        #self.write(")")
+    
 
     def walk_str_constant(self, formula):
-        assert (type(formula.constant_value()) == str ), \
-            "The type was " + str(type(formula.constant_value()))
-        self.write('"%s"' % formula.constant_value())
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_length(self,formula):
-        self.write("str.len(" )
-        self.walk(formula.arg(0))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_charat(self,formula, **kwargs):
-        self.write("str.at(" )
-        self.walk(formula.arg(0))
-        self.write(", ")
-        self.walk(formula.arg(1))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_concat(self,formula, **kwargs):
-        self.write("str.++(" )
-        for arg in formula.args()[:-1]:
-            self.walk(arg)
-            self.write(", ")
-        self.walk(formula.args()[-1])
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_contains(self,formula, **kwargs):
-        self.write("str.contains(" )
-        self.walk(formula.arg(0))
-        self.write(", ")
-        self.walk(formula.arg(1))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_indexof(self,formula, **kwargs):
-        self.write("str.indexof(" )
-        self.walk(formula.arg(0))
-        self.write(", ")
-        self.walk(formula.arg(1))
-        self.write(", ")
-        self.walk(formula.arg(2))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_replace(self,formula, **kwargs):
-        self.write("str.replace(" )
-        self.walk(formula.arg(0))
-        self.write(", ")
-        self.walk(formula.arg(1))
-        self.write(", ")
-        self.walk(formula.arg(2))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_substr(self,formula, **kwargs):
-        self.write("str.substr(" )
-        self.walk(formula.arg(0))
-        self.write(", ")
-        self.walk(formula.arg(1))
-        self.write(", ")
-        self.walk(formula.arg(2))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_prefixof(self,formula, **kwargs):
-        self.write("str.prefixof(" )
-        self.walk(formula.arg(0))
-        self.write(", ")
-        self.walk(formula.arg(1))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_suffixof(self,formula, **kwargs):
-        self.write("str.suffixof(" )
-        self.walk(formula.arg(0))
-        self.write(", ")
-        self.walk(formula.arg(1))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_str_to_int(self,formula, **kwargs):
-        self.write("str.to.int(" )
-        self.walk(formula.arg(0))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_int_to_str(self,formula, **kwargs):
-        self.write("int.to.str(" )
-        self.walk(formula.arg(0))
-        self.write(")")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_array_select(self, formula):
-        yield formula.arg(0)
-        self.write("[")
-        yield formula.arg(1)
-        self.write("]")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_array_store(self, formula):
-        yield formula.arg(0)
-        self.write("[")
-        yield formula.arg(1)
-        self.write(" := ")
-        yield formula.arg(2)
-        self.write("]")
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
     def walk_array_value(self, formula):
-        self.write(str(self.env.stc.get_type(formula)))
-        self.write("(")
-        yield formula.array_value_default()
-        self.write(")")
-        assign = formula.array_value_assigned_values_map()
-        # We sort the array value assigments in lexicographic order
-        # for deterministic printing
-        for k in sorted(assign, key=str):
-            self.write("[")
-            yield k
-            self.write(" := ")
-            yield assign[k]
-            self.write("]")
-
-    def walk_bv_tonatural(self, formula):
-        self.write("bv2nat(")
-        yield formula.arg(0)
-        self.write(")")
-
-    def walk_and(self, formula): return self.walk_nary(formula, " /\\ ")
-    def walk_or(self, formula): return self.walk_nary(formula, " \/ ")
-    def walk_plus(self, formula): return self.walk_nary(formula, " + ")
-    def walk_times(self, formula): return self.walk_nary(formula, " * ")
-    def walk_div(self, formula): return self.walk_nary(formula, " / ")
-    def walk_pow(self, formula): return self.walk_nary(formula, " ^ ")
-    def walk_iff(self, formula): return self.walk_nary(formula, " <-> ")
-    def walk_implies(self, formula): return self.walk_nary(formula, " -> ")
-    def walk_minus(self, formula): return self.walk_nary(formula, " - ")
-    def walk_equals(self, formula): return self.walk_nary(formula, " = ") #optimathsat --> bvcomp
-    def walk_le(self, formula): return self.walk_nary(formula, " <= ")
-    def walk_lt(self, formula): return self.walk_nary(formula, " < ")
-    def walk_bv_xor(self, formula): return self.walk_nary(formula, " xor ")
-    def walk_bv_concat(self, formula): return self.walk_nary(formula, "::")
-    def walk_bv_udiv(self, formula): return self.walk_nary(formula, " u/ ")
-    def walk_bv_urem(self, formula): return self.walk_nary(formula, " u% ")
-    def walk_bv_sdiv(self, formula): return self.walk_nary(formula, " s/ ")
-    def walk_bv_srem(self, formula): return self.walk_nary(formula, " s% ")
-    def walk_bv_sle(self, formula): return self.walk_signed_bvle(formula)
-    def walk_bv_slt(self, formula): return self.walk_signed_bvlt(formula)
-    def walk_bv_ule(self, formula): return self.walk_bvle(formula)
-    def walk_bv_ult(self, formula): return self.walk_bvlt(formula)
-    def walk_bv_lshl(self, formula): return self.walk_nary(formula, " << ")
-    def walk_bv_lshr(self, formula): return self.walk_nary(formula, " >> ")
-    def walk_bv_ashr(self, formula): return self.walk_nary(formula, " a>> ")
-    def walk_bv_comp(self, formula): return self.walk_nary(formula, " bvcomp ")
-    
-    #walk_bv_add = walk_plus    
-    walk_bv_and = walk_and
-    walk_bv_or = walk_or
-    walk_bv_not = walk_not
-    walk_bv_mul = walk_times
-    walk_bv_sub = walk_minus
-
+        raise NotImplementedErr("Operation that cannot be translated into MzN")
 
 
 #EOC HRPrinter
 
 
-class SmtDagPrinter(DagWalker):
+class DagMznPrinter(DagWalker):
     
     def __init__(self,max_int_bit_size,stream,template="tmp_%d"):
         DagWalker.__init__(self, invalidate_memoization=True)
@@ -457,7 +306,7 @@ class SmtDagPrinter(DagWalker):
             self.write(" else ")
             self.write(args[2])
             self.write(" endif ")
-            self.write(" )} in")
+            self.write(" )} in \n")
         elif len(args)==1 and (operator=="not" or operator=="int2float"):
             self.write(" ")
             self.write(" not (")
@@ -472,6 +321,7 @@ class SmtDagPrinter(DagWalker):
                 self.write(" ")
                 self.write(s)
             self.write(" )} in \n")
+            #self.write(");\n")
         return sym
 
     def walk_and(self, formula, args):
@@ -531,36 +381,32 @@ class SmtDagPrinter(DagWalker):
 
     def walk_bv_and(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1 
-        typeF=str(formula.get_type()).lower()       
-        size=int(re.sub(r"bv{([0-9]+)}",r"\1",typeF))
+        self.openings += 1       
+        size=formula.bv_width()
         self.write(""" let { var int : %s  = sum([pow(2,i)* ((((%s div pow(2,i)) mod 2)) * (((%s div pow(2,i)) mod 2))) | i in 0..%s]);
                        } in\n""" %(sym,args[0],args[1],size-1))
         return sym
 
     def walk_bv_or(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
-        size=int(re.sub(r"bv{([0-9]+)}",r"\1",typeF))
+        self.openings += 1      
+        size=formula.bv_width()
         self.write(""" let { var int : %s  = sum([pow(2,i)* (((((%s div pow(2,i)) mod 2)) + (((%s div pow(2,i)) mod 2)))>0) | i in 0..%s]);
                        } in\n""" %(sym,args[0],args[1],size-1))
         return sym
 
     def walk_bv_not(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
-        size=int(re.sub(r"bv{([0-9]+)}",r"\1",typeF))
+        self.openings += 1      
+        size=formula.bv_width()
         self.write(""" let { var int : %s  = sum([pow(2,i)* (1-(%s div pow(2,i)) mod 2) | i in 0..%s]);
                        } in\n""" %(sym,args[0],size-1))
         return sym
 
     def walk_bv_xor(self, formula, args):
         sym = self._new_symbol()
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
-        size=int(re.sub(r"bv{([0-9]+)}",r"\1",typeF))
+        self.openings += 1      
+        size=formula.bv_width()
         self.write(""" let { var int : %s  = sum([pow(2,i)* (((((%s div pow(2,i)) mod 2)) != (((%s div pow(2,i)) mod 2)))) | i in 0..%s]);
                        } in\n""" %(sym,args[0],args[1],size-1))
         return sym 
@@ -779,7 +625,7 @@ class SmtDagPrinter(DagWalker):
         (n,d) = abs(formula.constant_value().numerator), \
                     formula.constant_value().denominator
         if d != 1:
-            return template % ( "(" + str(n) + " / " + str(d) + ")" )
+            return template % ( "(" + str(n) + ".0 / " + str(d) + ".0)" )
         else:
             return template % (str(n) + ".0")
 
@@ -931,7 +777,7 @@ class SmtDagPrinter(DagWalker):
     def walk_array_value(self, formula, args, **kwargs):
         raise NotImplementedErr("Operation that cannot be translated into MzN")
 
-class DagWalkerFathers(DagWalker):
+class DagFathersMznPrinter(DagWalker):
     def __init__(self,max_int_bit_size,stream,dict_fathers,template="tmp_%d",boolean_invalidate=True):
         DagWalker.__init__(self, invalidate_memoization=boolean_invalidate)
         self.stream = stream
@@ -1091,36 +937,32 @@ class DagWalkerFathers(DagWalker):
 
     def walk_bv_and(self, formula, args):
         sym=self._new_symbol_bv("bv_%d")
-        self.openings += 1 
-        typeF=str(formula.get_type()).lower()       
-        size=int(re.sub(r"bv{([0-9]+)}",r"\1",typeF))
+        self.openings += 1   
+        size=formula.bv_width()
         self.write(""" let { var int : %s  = sum([pow(2,i)* ((((%s div pow(2,i)) mod 2)) * (((%s div pow(2,i)) mod 2))) | i in 0..%s]);
                          in\n""" %(sym,args[0],args[1],size-1))
         return sym
 
     def walk_bv_or(self, formula, args):
         sym=self._new_symbol_bv("bv_%d")
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
-        size=int(re.sub(r"bv{([0-9]+)}",r"\1",typeF))
+        self.openings += 1     
+        size=formula.bv_width()
         self.write(""" let { var int : %s  = sum([pow(2,i)* (((((%s div pow(2,i)) mod 2)) + (((%s div pow(2,i)) mod 2)))>0) | i in 0..%s]);
                        } in\n""" %(sym,args[0],args[1],size-1))
         return sym
 
     def walk_bv_not(self, formula, args):
         sym=self._new_symbol_bv("bv_%d")
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
-        size=int(re.sub(r"bv{([0-9]+)}",r"\1",typeF))
+        self.openings += 1   
+        size=formula.bv_width()
         self.write(""" let { var int : %s  = sum([pow(2,i)* (1-(%s div pow(2,i)) mod 2) | i in 0..%s]);
                        } in\n""" %(sym,args[0],size-1))
         return sym
 
     def walk_bv_xor(self, formula, args):
         sym=self._new_symbol_bv("bv_%d")
-        self.openings += 1
-        typeF=str(formula.get_type()).lower()       
-        size=int(re.sub(r"bv{([0-9]+)}",r"\1",typeF))
+        self.openings += 1     
+        size=formula.bv_width()
         self.write(""" let { var int : %s  = sum([pow(2,i)* (((((%s div pow(2,i)) mod 2)) != (((%s div pow(2,i)) mod 2)))) | i in 0..%s]);
                        } in\n""" %(sym,args[0],args[1],size-1))
         return sym 
@@ -1152,8 +994,8 @@ class DagWalkerFathers(DagWalker):
         self.openings += 1   
         size=formula.bv_width()   
         self.write(""" let { var int:%s_args1 = if %s >= %s then %s-%s else %s endif;
-                            var int:%s_ris = (0 - %s_args1);
-                            var int:%s = if %s_ris < 0 then %s_ris+%s else %s_ris endif;
+                             var int:%s_ris = (0 - %s_args1);
+                             var int:%s = if %s_ris < 0 then %s_ris+%s else %s_ris endif;
                         } in\n""" %(sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),args[0],
                                    sym,sym,
                                    sym,sym,sym,str(pow(2,size)),sym))
@@ -1464,73 +1306,76 @@ class MZNPrinter(object):
         self.last_index=0
         self.max_int_bit_size=max_int_bit_size
         self.printer_selection=printer_selection #0 simple daggify, 1 2fathers labeling
+        self.mgr = get_env()._formula_manager
     
 
     def get_fathers(self,formula):
         cnt = 0
-        fathers = {}
+        fathers = collections.OrderedDict()
+        counter = collections.Counter()
+        subs = {}
         q = [formula]
-        visto_set=set()
         while q:
             e = q.pop()
             for s in e.args():
-                if s not in visto_set:
-                    q.append(s)
-                    visto_set.add(s)
+                if s not in counter:
+                    counter[s]=1
                 else:
-                    if s not in fathers and len(s.args())>=2: #and s.get_type()==BOOL and len(s.args())>=2:
+                    counter[s]+=1
+                    if s not in fathers and len(s.args())>=2 and counter[s]>=2:#and (("Bool" in str(s.get_type()) or "BV" in str(s.get_type()))):
+                        ns = self.mgr._create_symbol("tmp_"+str(cnt),s.get_type())
+                        subs[s]=ns
                         fathers[s]="tmp_"+str(cnt)
-                        cnt+=1 
-        return fathers
-
+                        cnt+=1
+                if counter[s]<2:
+                    q.append(s)
+        print("counter",len(counter))
+        print("fathers",len(fathers))
+        print("subs",len(subs))
+        return fathers,subs
 
     def serialize(self,formula,daggify=True,output_file=None):
         if self.printer_selection==0:
             buf = cStringIO()
             if daggify:
-                p = SmtDagPrinter(self.max_int_bit_size,buf)
+                p = DagMznPrinter(self.max_int_bit_size,buf)
             else:
-                p = HRPrinter(buf)
+                p = TreeMznPrinter(buf)
             p.printer(formula)
             res_f=buf.getvalue()
         else:
             print "Inizio a costruire dict_f"
-            dict_f = self.get_fathers(formula)
+            dict_f,subs = self.get_fathers(formula)
+            #print dict_f
             buf = cStringIO()
             str_let=""
             str_let_list=[]
             if dict_f:
                 print "Inizio iterazione di dict_f ->",len(dict_f)
-                p = DagWalkerFathers(self.max_int_bit_size,buf,dict_f,boolean_invalidate=False)
-                for sub_f in dict_f.keys():
+                #print dict_f
+                #p = DagFathersMznPrinter(self.max_int_bit_size,buf,dict_f,boolean_invalidate=False)
+                for sub_f in reversed(dict_f.keys()):
                     label=dict_f[sub_f]
-                    #print label
                     p.stream=cStringIO()
                     p.write=p.stream.write
-                    p.memoization[sub_f]=""
+                    p.memoization={}
                     p.printer(sub_f)
-                    match = re.match(r"tmp_([0-9]+)",label)
-                    v=-1
-                    if match:
-                        v=int(match.groups(0)[0])
-                    str_let_list.append((" var %s : %s =  %s;  \n "%(str(sub_f.get_type()).lower().replace("real","float"),label,p.stream.getvalue()),v))
+                    str_let_list.append(" var %s : %s =  %s;  \n "%(str(sub_f.get_type()).lower().replace("real","float"),label,p.stream.getvalue()))
+                    #print(str_let_list[-1],str_let_list[-1].count("tmp"))
                     p.memoization[sub_f]=label
                     p.stream.close()
+            buf = cStringIO()
+            #str_let_list=filter(lambda x:x.count("tmp")==1,str_let_list)+filter(lambda x:x.count("tmp")>1,str_let_list)
+            print("Subs")
+
             if dict_f:
-                str_let_list.sort(key=lambda x: (x[0].count("tmp"),x[1]))
-                str_let = "let {\n"+"".join([x[0] for x in str_let_list])+"} in \n"
-                p.stream=cStringIO()
-                p.write=p.stream.write
-                p.big_formula=True
-                p.printer(formula)
-                res=p.stream.getvalue()
-                p.stream.close()
-            else:
-                buf=cStringIO()
-                p = DagWalkerFathers(self.max_int_bit_size,buf,dict_f,boolean_invalidate=True)
-                p.printer(formula)
-                res=buf.getvalue()
-                buf.close()
+                str_let = "let {\n"+"".join(str_let_list)+"} in\n"
+                formula=sh.substitute(formula,subs)
+            print("TreePrint")
+            p = TreeMznPrinter(buf)
+            p.printer(formula)
+            res=buf.getvalue()
+            buf.close()
             res_f=str_let+"\n"+res
         if output_file is None:
             return res_f
