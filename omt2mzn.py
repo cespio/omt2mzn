@@ -3,6 +3,7 @@
 Francesco Contaldo, 2018 
 DISI University of Trento
 A Python Parser from OMT2MZN 
+30/11/2018
 '''
 
 from pyomt.smtlib.parser import SmtLib20Parser

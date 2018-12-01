@@ -26,7 +26,7 @@ from pyomt.walkers.generic import handles
 from pyomt.utils import quote
 from pyomt.environment import get_env
 from pyomt.constants import is_pyomt_fraction, is_pyomt_integer
-
+from pyomt.oracles import SizeOracle
 from pyomt.typing import BOOL, REAL, INT, BVType, ArrayType, STRING
 
 
@@ -41,18 +41,25 @@ class TreeMznPrinter(TreeWalker):
     E.g., Implies(And(Symbol(x), Symbol(y)), Symbol(z))  ~>   '(x * y) -> z'
     """
 
-    def __init__(self, stream,env=None):
+    def __init__(self,max_int_bit_size,stream,env=None):
         TreeWalker.__init__(self, env=env)
         self.stream = stream
         self.write = self.stream.write
-        self.fv=[]
-        self.stack_subf=[]
+        self.name_seed = 0
+        self.template = "bv_%d"
+        self.max_int_bit_size=max_int_bit_size
+        
     
 
     def printer(self, f,threshold=None):
         """Performs the serialization of 'f' MZN"""
         self.walk(f,threshold=None)
                 
+    def _new_symbol_bv(self):
+        res = (self.template % self.name_seed)
+        self.name_seed += 1
+        return res
+
 
     def walk_threshold(self, formula):
         self.write("...")
@@ -109,38 +116,330 @@ class TreeMznPrinter(TreeWalker):
     def walk_lt(self, formula):     return self.walk_nary(formula, "<")
     def walk_toreal(self, formula): return self.walk_nary(formula, "int2float")
     def walk_ite(self, formula):    return self.walk_nary(formula, "ite")
+
     ### ----------------- BV ------------------------------------------#
-    def walk_bv_and(self, formula): pass
-    def walk_bv_or(self,formula): pass    
-    def walk_bv_not(self,formula): pass
-    def walk_bv_xor(self, formula): pass
-    def walk_bv_add(self,formula): pass 
-    def walk_bv_sub(self,formula): pass
-    def walk_bv_neg(self, formula): pass
-    def walk_bv_mul(self,formula): pass
-    def walk_bv_concat(self, formula): pass
-    def walk_bv_udiv(self, formula): pass
-    def walk_bv_urem(self, formula): pass
-    def walk_bv_sdiv(self, formula): pass
-    def walk_bv_srem(self, formula): pass
-    def walk_bv_sle(self, formula):  pass
-    def walk_bv_slt(self, formula):  pass
-    def walk_bv_ule(self, formula):  pass
-    def walk_bv_ult(self, formula):  pass
-    def walk_bv_lshl(self, formula):  pass
-    def walk_bv_lshr(self, formula):  pass
-    def walk_bv_ashr(self, formula): pass
-    def walk_bv_extract(self, formula):pass
-    def walk_bv_ror(self, formula): pass
-    def walk_bv_rol(self, formula): pass
-    def walk_bv_zext(self, formula): pass
-    def walk_bv_sext(self, formula): pass
-    def walk_bvlt(self,formula): pass
-    def walk_bvle(self,formula): pass
-    def walk_signed_bvlt(self,formula): pass
-    def walk_signed_bvle(self,formula): pass
-    def walk_bv_comp(self, formula): pass
-    def walk_bv_tonatural(self, formula): pass
+    
+    def walk_bv_and(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int : %s  = sum([pow(2,i)* (((( """%(sym))
+        yield args[0] 
+        self.write("div pow(2,i)) mod 2)) * (((")
+        yield args[1] 
+        self.write("""div pow(2,i)) mod 2))) | i in 0..%s]);
+                         in %s\n""" %(size-1,sym))
+
+    def walk_bv_or(self,formula): 
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int : %s  = sum([pow(2,i)* ((((("""%(sym))
+        yield args[0] 
+        self.write("div pow(2,i)) mod 2)) + (((")
+        yield args[1]
+        self.write("""div pow(2,i)) mod 2)))>0) | i in 0..%s]);
+                       } in %s\n""" %(size-1,sym))
+
+    def walk_bv_not(self,formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int : %s  = sum([pow(2,i)* (1-("""%(sym))
+        yield args[0]
+        self.write("""div pow(2,i)) mod 2) | i in 0..%s]);
+                       } in %s\n""" %(size-1,sym))
+
+    def walk_bv_xor(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int : %s  = sum([pow(2,i)* ((((("""%(sym))
+        yield args[0]
+        self.write("div pow(2,i)) mod 2)) != (((")
+        yield args[1] 
+        self.write("""div pow(2,i)) mod 2)))) | i in 0..%s]);
+                       } in %s\n""" %(size-1,sym))
+        
+    def walk_bv_add(self,formula): 
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write("""let{ var int:%s = ("""%(sym))
+        yield args[0]
+        self.write(" + ") 
+        yield args[1]
+        self.write(""") mod %s;
+                        } in sym\n"""%(str(pow(2,size)),sym))
+    
+
+    def walk_bv_sub(self,formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { 
+                    var int:%s_args1_in = """%(sym))
+        yield args[0]
+        self.write(";\n var int:%s_args2_in = "%(sym))
+        yield args[1]
+        self.write(""";\nvar int:%s_args1 = if %s_args1_in >= %s then %s_args1_in-%s else %s_args1_in endif;
+                    var int:%s_args2 = if %s_args2_in >= %s then %s_args2_in-%s else %s_args2_in endif;
+                    var int:%s_ris = (%s_args1 - %s_args2) mod %s;
+                    var int:%s = if %s_ris < 0 then %s_ris+%s else %s_ris endif;
+                } in %s\n""" %(sym,args[0],str(pow(2,size-1)),sym,pow(2,size),sym,
+                            sym,args[1],str(pow(2,size-1)),sym,pow(2,size),sym,
+                            sym,sym,sym,str(pow(2,size)),
+                            sym,sym,sym,str(pow(2,size)),sym,sym))
+
+
+    def walk_bv_neg(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let {
+                            var int:%s_args1_in = """)
+        yield args[0];
+        self.write(""";\var int:%s_args1 = if %s_args1_in >= %s then %s_args1_in-%s else %s_args1_in endif;
+                            var int:%s_ris = (0 - %s_args1);
+                            var int:%s = if %s_ris < 0 then %s_ris+%s else %s_ris endif;
+                        } in %s\n""" %(sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),args[0],
+                                   sym,sym,
+                                   sym,sym,sym,str(pow(2,size)),sym,sym))
+
+    def walk_bv_mul(self,formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int:%s = ( """%(sym))
+        yield args[0]
+        self.write(" * ")
+        yield args[1]
+        self.write(""") mod %s
+                        } in %s\n"""%(str(pow(2,size)),sym))
+
+    def walk_bv_concat(self, formula):
+        sym = self._new_symbol_bv()
+        args = formula.args()
+        size_s1=formula.args()[0].bv_width()
+        size_s2=formula.args()[1].bv_width()
+        self.write(""" let { var int: %s = """%(sym))
+        yield args[1]
+        self.write(" + sum([pow(2,i+%s)*((("%(size_s2))
+        yield args[0]
+        self.write(""" div pow(2,i)) mod 2)) | i in 0..%s]);
+                            } in %s\n"""%(size_s1-1,sym))
+
+    def walk_bv_udiv(self, formula): 
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int:%s = ("""%(sym))
+        yield args[0]
+        self.write(" div ")
+        yield args[1]
+        self.write(""") } in %s\n"""%(sym))
+
+    def walk_bv_urem(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int:%s = (""" %(sym))
+        yield args[0]
+        self.write(" mod ")
+        yield args[1]
+        self.write(""") } in %s\n"""%(sym))
+
+    def walk_bv_sdiv(self, formula): 
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { 
+                             var int:%s_args1_in = """%(sym))
+        yield args[0]
+        self.write(""";\nvar int:%s_args2_in = """%(sym))
+        yield args[1]                    
+        self.write("""    ;\nvar int:%s_args1 = if %s_args1_in >= %s then %s_args1_in-%s else %s_args1_in endif;
+                             var int:%s_args2 = if %s_args2_in >= %s then %s_args2_in-%s else %s_args2_in endif;
+                             var int:%s_ris = (%s_args1 div %s_args2);  
+                             var int:%s = if %s_ris < 0 then %s_ris+%s else %s_ris endif;
+                        } in\n %s""" %(sym,sym,str(pow(2,size-1)),sym,str(pow(2,size)),sym,
+                                   sym,sym,str(pow(2,size-1)),sym,str(pow(2,size)),sym,
+                                   sym,sym,sym,
+                                   sym,sym,sym,str(pow(2,size)),sym,sym))
+
+    def walk_bv_srem(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { 
+                    var int:%s_args1_in = """%(sym))
+        yield args[0]
+        self.write(";\n var int:%s_args2_in = "%(sym))
+        yield args[1]
+        self.write(""";\nvar int:%s_args1 = if %s_args1_in >= %s then %s_args1_in-%s else %s_args1_in endif;
+                             var int:%s_args2 = if %s_args2_in >= %s then %s_args2_in-%s else %s_args2_in endif;
+                             var int:%s_ris = (%s_args1 mod %s_args2);
+                             var int:%s = if %s_ris < 0 then %s_ris+%s else %s_ris endif;
+                        } in %s\n""" %(sym,sym,str(pow(2,size-1)),sym,str(pow(2,size)),sym,
+                                   sym,sym,str(pow(2,size-1)),sym,str(pow(2,size)),sym,
+                                   sym,sym,sym,
+                                   sym,sym,sym,str(pow(2,size)),sym,sym))
+
+    def walk_bv_sle(self, formula): 
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { 
+                    var int:%s_args1_in = """%(sym))
+        yield args[0]
+        self.write(";\n var int:%s_args2_in = "%(sym))
+        yield args[1]
+        self.write(""";\nvar int:%s_args1 = if %s_args1_in >= %s then %s_args1_in-%s else %s_args1_in endif;
+                             var int:%s_args2 = if %s_args2_in >= %s then %s_args2_in-%s else %s_args2_in endif;
+                             var bool:%s = (%s_args1 <= %s_args2)  
+                        } in %s\n"""%(sym,sym,str(pow(2,size-1)),sym,str(pow(2,size)),sym,
+                                   sym,sym,str(pow(2,size-1)),args[1],str(pow(2,size)),sym,
+                                   sym,sym,sym,sym))
+
+    def walk_bv_slt(self, formula):  
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { 
+                    var int:%s_args1_in = """%(sym))
+        yield args[0]
+        self.write(";\n var int:%s_args2_in = "%(sym))
+        yield args[1]
+        self.write(""";\nvar int:%s_args1 = if %s >= %s then %s-%s else %s endif;
+                             var int:%s_args2 = if %s >= %s then %s-%s else %s endif;
+                             var bool:%s = (%s_args1 < %s_args2)  
+                        } in  %s\n"""%(sym,sym,str(pow(2,size-1)),sym,str(pow(2,size)),sym,
+                                   sym,sym,str(pow(2,size-1)),sym,str(pow(2,size)),sym,
+                                   sym,sym,sym,sym))
+
+    def walk_bv_ule(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var bool:%s  = (""" %(sym))
+        yield args[0]
+        self.write(" <= ")
+        yield args[1]
+        self.write(")} in %s\n"%(sym))
+
+
+    def walk_bv_ult(self, formula): 
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var bool:%s  = (""" %(sym))
+        yield args[0]
+        self.write(" <= ")
+        yield args[1]
+        self.write(")} in %s\n"%(sym))
+        
+    def walk_bv_lshl(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int:%s = ("""%(sym))
+        yield args[0]
+        self.write("* pow(2,")
+        yield args[1]
+        self.write(""")) mod %s; } in %s\n"""%(str(pow(2,size)),sym))
+
+    def walk_bv_lshr(self, formula): 
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int:%s = ("""%(sym))
+        yield args[0]
+        self.write(""" div pow(2,""")
+        yield args[1]
+        self.write(""" ))) } in %s\n"""%(sym))
+    
+
+    def walk_bv_ashr(self, formula): 
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { 
+                    var int:%s_args1_in = """%(sym))
+        yield args[0]
+        self.write(";\n var int:%s_args2_in = "%(sym))
+        yield args[1]
+        self.write(""";\nvar int:%s_args1 = if %s_args1_in>=%s then %s_args1_in-%s+%s else %s_args1_in endif;
+                              var int:%s_ris =  %s_args1 div pow(2,%s_args2_in);
+                              var int:%s = if %s_args1_in<%s  then %s_ris else sum([pow(2,i)*(((%s_ris+%s) div pow(2,i)) mod 2)|i in 0..%s]) endif;
+                            } in %s\n"""%(sym,sym,str(pow(2,size-1)),sym,str(pow(2,size)),str(pow(2,self.max_int_bit_size-1)),sym, 
+                                      sym,sym,sym,
+                                      sym,args,sym,str(pow(2,size-1)),sym,sym,str(pow(2,self.max_int_bit_size-3)+pow(2,self.max_int_bit_size-2)+pow(2,self.max_int_bit_size-1)+pow(2,size)),size-1,sym))
+
+    def walk_bv_comp(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        self.write(""" let { var int : %s  = if """%(sym))
+        yield args[0]
+        self.write(" = ")
+        yield args[1]
+        self.write(""" then 1 else 0 endif; } in %s\n""" %(sym))
+    
+    def walk_bv_tonatural(self, formula):
+        yield formula.args()[0]
+    
+    def walk_bv_extract(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        start=int(formula.bv_extract_start())
+        end=int(formula.bv_extract_end())
+        if start != end:
+            self.write(""" let { var int : %s_s1 = """ %(sym))
+            yield args[0] 
+            self.write("""div %s;
+                            var int : %s = sum([pow(2,i)*(((%s_s1 div pow(2,i)) mod 2)) | i in 0..%s])
+                        } in %s\n"""%(str(pow(2,start)),sym,sym,str(end-start),sym))
+                                
+
+        else:
+            self.write(""" let { var int : %s =  ("""%(sym))
+            yield args[0]
+            self.write(""" div pow(2,%s)) mod 2; } in %s\n""" %(start,sym))
+    
+    def walk_bv_ror(self, formula): 
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        rotate=formula.bv_rotation_step()%size
+        self.write(""" let { 
+                    var int:%s_args1_in = """%(sym))
+        yield args[0]
+        self.write(""";\nvar int:%s = (%s_args1_in div %s + ((%s_args1_in * %s) mod %s)) mod %s;
+                            } in %s\n"""%(sym,sym,str(pow(2,rotate)),sym,str(pow(2,size-rotate)),str(pow(2,size)),str(pow(2,size)),sym))
+    
+    def walk_bv_rol(self, formula):
+        sym = self._new_symbol_bv()
+        size = formula.bv_width()
+        args = formula.args()
+        rotate=formula.bv_rotation_step()%size
+        self.write(""" let { 
+                    var int:%s_args1_in = """%(sym))
+        yield args[0]
+        self.write(""";\nvar int:%s = (%s_args1_in div %s) + ((%s_args1_in * %s mod %s)) mod %s; 
+                           } in %s\n"""%(sym,str(pow(2,size-rotate)),sym,str(pow(2,rotate)),str(pow(2,size)),str(pow(2,size),sym)))
+
+    def walk_bv_zext(self, formula): 
+        yield formula.args()[0]
+
+    def walk_bv_sext(self, formula):
+        sym = self._new_symbol_bv()
+        args = formula.args()
+        self.write(""" let { var int:%s = """%(sym))
+        yield args[0]
+        self.write("""+sum([pow(2,i) | i in %s..%s ]); } in %s\n"""%(formula.args()[0].bv_width(),formula.bv_width()-1,sym))
+
+    
     
 
     def walk_symbol(self, formula):
@@ -450,7 +749,7 @@ class DagMznPrinter(DagWalker):
         sym = self._new_symbol()
         self.openings += 1
         typeF=int(str(formula.get_type()).lower())       
-        size=re.sub(r"bv{([0-9]+)}",r"\1",typeF)    
+        size=formula.bv_width()    
         self.write(""" let { var int:%s = (%s*%s) mod %s
                         } in\n"""%(sym,args[0],args[1],str(pow(2,size))))
         return sym
@@ -1045,7 +1344,7 @@ class DagFathersMznPrinter(DagWalker):
                         } in\n"""%(sym,args[0],args[1]))
         return sym
 
-    def walk_bv_ult(self, formula, args):    #depend on the encoding
+    def walk_bv_ult(self, formula, args):   
         sym=self._new_symbol_bv("bv_%d")
         self.openings += 1
         self.write(""" let { var bool:%s = (%s<%s) 
@@ -1322,7 +1621,7 @@ class MZNPrinter(object):
                     counter[s]=1
                 else:
                     counter[s]+=1
-                    if s not in fathers and len(s.args())>=2 and counter[s]>=2:#and (("Bool" in str(s.get_type()) or "BV" in str(s.get_type()))):
+                    if s not in fathers and len(s.args())>=2 and counter[s]>=2 :#and (("Bool" in str(s.get_type()) or "BV" in str(s.get_type()))):
                         ns = self.mgr._create_symbol("tmp_"+str(cnt),s.get_type())
                         subs[s]=ns
                         fathers[s]="tmp_"+str(cnt)
@@ -1332,7 +1631,7 @@ class MZNPrinter(object):
         print("counter",len(counter))
         print("fathers",len(fathers))
         print("subs",len(subs))
-        return fathers,subs
+        return fathers,subs,formula
 
     def serialize(self,formula,daggify=True,output_file=None):
         if self.printer_selection==0:
@@ -1340,42 +1639,37 @@ class MZNPrinter(object):
             if daggify:
                 p = DagMznPrinter(self.max_int_bit_size,buf)
             else:
-                p = TreeMznPrinter(buf)
+                p = TreeMznPrinter(self.max_int_bit_size,buf)
             p.printer(formula)
             res_f=buf.getvalue()
         else:
             print "Inizio a costruire dict_f"
-            dict_f,subs = self.get_fathers(formula)
-            #print dict_f
+            dict_f,subs,formula = self.get_fathers(formula)
             buf = cStringIO()
             str_let=""
-            str_let_list=[]
+            str_let_list=[]            
             if dict_f:
-                print "Inizio iterazione di dict_f ->",len(dict_f)
-                #print dict_f
-                #p = DagFathersMznPrinter(self.max_int_bit_size,buf,dict_f,boolean_invalidate=False)
+                p = DagFathersMznPrinter(self.max_int_bit_size,buf,dict_f,boolean_invalidate=False)
                 for sub_f in reversed(dict_f.keys()):
                     label=dict_f[sub_f]
                     p.stream=cStringIO()
+                    p.memoization[sub_f]=""
                     p.write=p.stream.write
-                    p.memoization={}
                     p.printer(sub_f)
                     str_let_list.append(" var %s : %s =  %s;  \n "%(str(sub_f.get_type()).lower().replace("real","float"),label,p.stream.getvalue()))
-                    #print(str_let_list[-1],str_let_list[-1].count("tmp"))
                     p.memoization[sub_f]=label
                     p.stream.close()
             buf = cStringIO()
-            #str_let_list=filter(lambda x:x.count("tmp")==1,str_let_list)+filter(lambda x:x.count("tmp")>1,str_let_list)
-            print("Subs")
-
             if dict_f:
+                str_let_list.sort(key=lambda x:x.count("tmp"))
                 str_let = "let {\n"+"".join(str_let_list)+"} in\n"
                 formula=sh.substitute(formula,subs)
-            print("TreePrint")
-            p = TreeMznPrinter(buf)
+            print("Inizio TreePrint")
+            p = TreeMznPrinter(self.max_int_bit_size,buf)
             p.printer(formula)
             res=buf.getvalue()
             buf.close()
+
             res_f=str_let+"\n"+res
         if output_file is None:
             return res_f
