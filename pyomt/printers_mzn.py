@@ -1628,9 +1628,9 @@ class MZNPrinter(object):
                         cnt+=1
                 if counter[s]<2:
                     q.append(s)
-        print("counter",len(counter))
-        print("fathers",len(fathers))
-        print("subs",len(subs))
+        #print("counter",len(counter))
+        #print("fathers",len(fathers))
+        #print("subs",len(subs))
         return fathers,subs,formula
 
     def serialize(self,formula,daggify=True,output_file=None):
@@ -1643,7 +1643,7 @@ class MZNPrinter(object):
             p.printer(formula)
             res_f=buf.getvalue()
         else:
-            print "Inizio a costruire dict_f"
+            #print "Inizio a costruire dict_f"
             dict_f,subs,formula = self.get_fathers(formula)
             buf = cStringIO()
             str_let=""
@@ -1661,10 +1661,11 @@ class MZNPrinter(object):
                     p.stream.close()
             buf = cStringIO()
             if dict_f:
+                str_let_list.reverse()
                 str_let_list.sort(key=lambda x:x.count("tmp"))
                 str_let = "let {\n"+"".join(str_let_list)+"} in\n"
                 formula=sh.substitute(formula,subs)
-            print("Inizio TreePrint")
+            #print("Inizio TreePrint")
             p = TreeMznPrinter(self.max_int_bit_size,buf)
             p.printer(formula)
             res=buf.getvalue()
