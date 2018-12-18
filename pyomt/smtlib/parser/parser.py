@@ -599,7 +599,7 @@ class SmtLibParser(object):
                 fun = mgr.SBV(v,width)
             else:
                 fun = mgr.BV(v,width)
-            
+
 
         else:
             raise PyomtSyntaxError("Unexpected '_' expression '%s'" % op,
@@ -763,9 +763,9 @@ class SmtLibParser(object):
         stack[-1].append(self._exit_quantifier)
         stack[-1].append(quant)
         stack[-1].append(vrs)
-    
 
-    
+
+
 
     def _enter_annotation(self, stack, tokens, key):
         """Deals with annotations"""
@@ -824,7 +824,7 @@ class SmtLibParser(object):
                     fun(stack, tokens, tk)
                 else:
                     stack[-1].append(self.atom(tk, mgr))
-    
+
             elif tk == ")":
                 try:
                     lst = stack.pop()
@@ -832,14 +832,14 @@ class SmtLibParser(object):
                 except IndexError:
                     raise PyomtSyntaxError("Unexpected ')'",
                                            tokens.pos_info)
-                
+
                 try:
                     res = fun(*lst)
                 except TypeError as err:
                     if not callable(fun):
                         raise NotImplementedError("Unknown function '%s'" % fun)
                     raise err
-                
+
                 if len(stack) > 0:
                     stack[-1].append(res)
                 else:
@@ -1023,7 +1023,7 @@ class SmtLibParser(object):
             res.append(self.parse_type(tokens, command, additional_token=current))
             current = tokens.consume()
         return res
-    
+
     def parse_all_params(self,tokens,command): #optimathasat
         """Parses a list of types from the tokens"""
         self.consume_opening(tokens, command)
@@ -1136,7 +1136,8 @@ class SmtLibParser(object):
     def _cmd_assert_soft(self, current, tokens):
         """(assert-soft <term> [:id <string>] [:weight <const_term>])"""
         expr = self.get_expression(tokens)
-        w_v=1
+        mgr = self.env.formula_manager
+        w_v= mgr.Int(1)
         id_v="I"
         r1 = self.parse_atom(tokens,current)
         if r1==":weight":
@@ -1156,7 +1157,7 @@ class SmtLibParser(object):
             tokens.add_extra_token(curr_tokens)
             self.consume_closing(tokens, current)
         return SmtLibCommand(current, [expr,w_v,id_v])
-    
+
     def _cmd_check_allsat(self,current,tokens):
         """(check-allsat <terms>)"""
         params = self.parse_params(tokens, current)
@@ -1215,7 +1216,7 @@ class SmtLibParser(object):
         params = self.parse_expr_list(tokens, current)
         self.consume_closing(tokens, current)
         return SmtLibCommand(current, params)
-    
+
     def _cmd_get_objectives(self,current,tokens):
         """(get-objective)"""
         self.parse_atoms(tokens, current, 0)
@@ -1236,7 +1237,7 @@ class SmtLibParser(object):
         tokens.add_extra_token(")")
         self.consume_closing(tokens,current)
         return SmtLibCommand(current, params)
-    
+
     def _cmd_maximize(self,current,tokens): #---optimathsat
         """(maximize <term> [:id <string>] [:signed]
 [:lower <const_term>] [:upper <const_term>])"""
@@ -1264,7 +1265,7 @@ class SmtLibParser(object):
         tokens.add_extra_token(")")
         self.consume_closing(tokens,current)
         return SmtLibCommand(current,[obj]+[params])
-    
+
     def _cmd_minimize(self,current,tokens): #---optimathsat
         """(minimize <term> [:id <string>] [:signed]
 [:lower <const_term>] [:upper <const_term>])"""
@@ -1291,11 +1292,11 @@ class SmtLibParser(object):
         tokens.add_extra_token(")")
         self.consume_closing(tokens,current)
         return SmtLibCommand(current,[obj]+[params])
-    
+
     def _cmd_declare_fun(self, current, tokens):
         """(declare-fun <symbol> (<sort>*) <sort>)"""
         var = self.parse_atom(tokens, current)
-        params = self.parse_params(tokens, current) 
+        params = self.parse_params(tokens, current)
         typename = self.parse_type(tokens, current)
         self.consume_closing(tokens, current)
 
@@ -1309,7 +1310,7 @@ class SmtLibParser(object):
         else:
             self.cache.bind(var, v)
         return SmtLibCommand(current, [v])
-    
+
     def _cmd_define_fun_optimath(self, current, tokens):
         var = self.parse_atom(tokens, current)
         params = self.parse_all_params(tokens, current)
