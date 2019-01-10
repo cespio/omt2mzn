@@ -1614,24 +1614,44 @@ class MZNPrinter(object):
         counter = collections.Counter()
         subs = {}
         q = [formula]
+        '''
+        for s in formula.args():
+            self.get_fathers_DFS(s,fathers,counter,subs)
+        '''
         while q:
-            e = q.pop()
+            e = q.pop(0)
             for s in e.args():
                 if s not in counter:
                     counter[s]=1
                 else:
                     counter[s]+=1
-                    if s not in fathers and len(s.args())>=2 and counter[s]>=2 :#and (("Bool" in str(s.get_type()) or "BV" in str(s.get_type()))):
+                    if s not in fathers and len(s.args())>=2 and counter[s]>=2 :
                         ns = self.mgr._create_symbol("tmp_"+str(cnt),s.get_type())
                         subs[s]=ns
                         fathers[s]="tmp_"+str(cnt)
                         cnt+=1
                 if counter[s]<2:
                     q.append(s)
-        #print("counter",len(counter))
-        #print("fathers",len(fathers))
-        #print("subs",len(subs))
+
+        print(len(fathers))
         return fathers,subs,formula
+
+    def get_fathers_DFS(self,formula,fathers,counter,subs):
+        #print("sono in ",formula)
+        if counter[formula]>=2:
+            return
+        else:
+            if formula not in counter:
+                counter[formula]=1
+            else:
+                counter[formula]+=1
+                if formula not in fathers and len(formula.args())>=2 and counter[formula]>=2 :#and (("Bool" in str(s.get_type()) or "BV" in str(s.get_type()))):
+                    ns = self.mgr._create_symbol("tmp_"+str(len(fathers)),formula.get_type())
+                    subs[formula]=ns
+                    fathers[formula]="tmp_"+str(len(fathers))
+            if counter[formula]<2:
+                for s in formula.args():
+                    self.get_fathers_DFS(s,fathers,counter,subs)
 
     def serialize(self,formula,daggify=True,output_file=None):
         if self.printer_selection==0:
@@ -1643,17 +1663,15 @@ class MZNPrinter(object):
             p.printer(formula)
             res_f=buf.getvalue()
         else:
-            #print "Inizio a costruire dict_f"
             dict_f,subs,formula = self.get_fathers(formula)
             buf = cStringIO()
             str_let=""
             str_let_list=[]
             if dict_f:
-                p = DagFathersMznPrinter(self.max_int_bit_size,buf,dict_f,boolean_invalidate=False)
+                p = DagFathersMznPrinter(self.max_int_bit_size,buf,{},boolean_invalidate=False)
                 for sub_f in reversed(dict_f.keys()):
                     label=dict_f[sub_f]
                     p.stream=cStringIO()
-                    p.memoization[sub_f]=""
                     p.write=p.stream.write
                     p.printer(sub_f)
                     str_let_list.append(" var %s : %s =  %s;  \n "%(str(sub_f.get_type()).lower().replace("real","float"),label,p.stream.getvalue()))
@@ -1661,11 +1679,8 @@ class MZNPrinter(object):
                     p.stream.close()
             buf = cStringIO()
             if dict_f:
-                str_let_list.reverse()
-                str_let_list.sort(key=lambda x:x.count("tmp"))
                 str_let = "let {\n"+"".join(str_let_list)+"} in\n"
                 formula=sh.substitute(formula,subs)
-            #print("Inizio TreePrint")
             p = TreeMznPrinter(self.max_int_bit_size,buf)
             p.printer(formula)
             res=buf.getvalue()

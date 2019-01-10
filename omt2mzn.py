@@ -439,7 +439,7 @@ class Omt2Mzn():
             if bv_search:
                 file_out.write("var int : "+str(var)+";\n")
             elif "Real" in str(variables[var][0]):
-                file_out.write("var -2147483646.0..2147483646.0 : "+str(var)+";\n")
+                file_out.write("var -3.402823e+38..3.402823e+38 : "+str(var)+";\n")
                 #file_out.write("var float : "+str(var)+";\n")
             else:
                 typeD=variables[var][0]
