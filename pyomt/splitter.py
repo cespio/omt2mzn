@@ -20,7 +20,7 @@ class Splitter(TreeWalker):
     def splitter(self, f, threshold=None):
         self.walk(f, threshold=None) #optimathsat
         list_id=[n.node_id() for n in self.node_var]
-        Substituter.substitute(f,)
+        #Substituter.substitute(f,)
 
     def walk_threshold(self, formula):
         pass
@@ -30,7 +30,7 @@ class Splitter(TreeWalker):
         for s in args[:-1]:
             yield s
         yield args[-1]
-    
+
     def walk_split(self,formula):
         print("OR/AND ")
         args = formula.args()
@@ -38,7 +38,7 @@ class Splitter(TreeWalker):
         if get_formula_size(args[0])>=200: ##sono boolean
             self.node_var.append(args[0])
         else:
-            yield args[0] 
+            yield args[0]
         print(get_formula_size(args[1]))
         if get_formula_size(args[1])>=200:
             self.node_var.append(args[1])
@@ -47,7 +47,7 @@ class Splitter(TreeWalker):
         #for s in args[:-1]:
         #    yield s
         #yield args[-1]
-    
+
     def walk_quantifier(self, op_symbol, var_sep, sep, formula):
         if len(formula.quantifier_vars()) > 0:
             for s in formula.quantifier_vars()[:-1]:
@@ -75,11 +75,11 @@ class Splitter(TreeWalker):
         # TODO: Remove this once issue 113 in gmpy2 is solved
         v = formula.constant_value()
         n,d = v.numerator, v.denominator
-        
+
     def walk_int_constant(self, formula):
         assert is_pyomt_integer(formula.constant_value()), \
             "The type was " + str(type(formula.constant_value()))
-       
+
 
     def walk_bool_constant(self, formula):
         pass
@@ -95,7 +95,7 @@ class Splitter(TreeWalker):
 
     def walk_bv_extract(self, formula):
         yield formula.arg(0)
-        
+
 
     def walk_bv_neg(self, formula):
         yield formula.arg(0)
@@ -151,7 +151,7 @@ class Splitter(TreeWalker):
         self.walk(formula.arg(0))
         self.walk(formula.arg(1))
         self.walk(formula.arg(2))
-        
+
     def walk_str_replace(self,formula, **kwargs):
         self.walk(formula.arg(0))
         self.walk(formula.arg(1))
@@ -197,7 +197,7 @@ class Splitter(TreeWalker):
 
     def walk_bv_tonatural(self, formula):
         yield formula.arg(0)
-            
+
     def walk_and(self, formula): return self.walk_split(formula)
     def walk_or(self, formula): return self.walk_split(formula)
     def walk_plus(self, formula): return self.walk_nary(formula)

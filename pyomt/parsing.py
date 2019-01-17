@@ -20,7 +20,7 @@ from collections import namedtuple
 
 import pyomt.typing as types
 from pyomt.environment import get_env
-from pyomt.exceptions import pyomtSyntaxError, UndefinedSymbolError
+from pyomt.exceptions import PyomtSyntaxError, UndefinedSymbolError
 from pyomt.constants import Fraction
 
 

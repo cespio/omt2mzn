@@ -19,14 +19,14 @@ with open(fin,"r") as inputf:
             #print(r)
             line=re.sub(r""+match.groups(0)[0],str(r),line)
             #print(line)
-        
+
         if "constraint" in line and "let" in line:
             flagC=1
-            line1=line.replace("} in",";")
+            line1=line.replace("} in","")
             print(line1)
         elif re.match(r"tmp_[0-9]+\);",line) is not None:
             print("} in "+line)
             #pass
         else:
-            print(line.replace("let {","").replace("} in",";"))
+            print(line.replace("let {","").replace("} in",""))
             #pass
