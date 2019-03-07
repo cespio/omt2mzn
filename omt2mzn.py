@@ -437,7 +437,8 @@ class Omt2Mzn():
             #In minizinc if no domain is specified there can be problems with the solver like g12
             bv_search=re.search(r"BV{([0-9]+)}",str(variables[var][0]))
             if bv_search:
-                file_out.write("var int : "+str(var)+";\n")
+                file_out.write("var 0.."+str(pow(2,int(bv_search.groups(0)[0]))-1)+" : "+str(var)+";\n")
+                #   file_out.write("constraint("+str(var)+">=0 /\ "+str(pow(2,int(bv_search.groups(0)[0])))+" > "+str(var)+");\n")
             elif "Real" in str(variables[var][0]):
                 file_out.write("var -3.402823e+38..3.402823e+38 : "+str(var)+";\n")
                 #file_out.write("var float : "+str(var)+";\n")

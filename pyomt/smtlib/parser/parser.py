@@ -597,6 +597,7 @@ class SmtLibParser(object):
             #    fun = mgr.BV(v,width) #optimathsat
             if v<0:
                 fun = mgr.SBV(v,width)
+                print(fun)
             else:
                 fun = mgr.BV(v,width)
 

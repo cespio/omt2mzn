@@ -200,7 +200,7 @@ class TreeMznPrinter(TreeWalker):
         args = formula.args()
         self.write(""" let { var int:%s_args1_in = """%(sym))
         yield args[0]
-        self.write(""";\var int:%s_args1 = if (%s_args1_in >= %s) then (%s_args1_in-%s) else (%s_args1_in) endif;
+        self.write(""";\nvar int:%s_args1 = if (%s_args1_in >= %s) then (%s_args1_in-%s) else (%s_args1_in) endif;
                             var int:%s_ris = (0 - %s_args1);
                             var int:%s = if (%s_ris < 0) then (%s_ris+%s) else %s_ris endif;
                         } in \n %s""" %(sym,args[0],str(pow(2,size-1)),args[0],str(pow(2,size)),args[0],
@@ -933,6 +933,7 @@ class DagMznPrinter(DagWalker):
                     formula.constant_value().denominator
         if d != 1:
             return template % ( "(" + str(n) + ".0 / " + str(d) + ".0)" )
+
         else:
             return template % (str(n) + ".0")
 
@@ -1483,8 +1484,10 @@ class DagFathersMznPrinter(DagWalker):
 
         (n,d) = abs(formula.constant_value().numerator), \
                     formula.constant_value().denominator
+
         if d != 1:
             return template % ( "(" + str(n) + ".0 / " + str(d) + ".0)" )
+
         else:
             return template % (str(n) + ".0")
 
@@ -1669,12 +1672,13 @@ class MZNPrinter(object):
             p.printer(formula)
             res_f=buf.getvalue()
         else:
+            print("starting 2 fathers print")
             dict_f,subs,formula = self.get_fathers(formula)
-            #print("Number of 2 Fathers identified -> %s"%(len(dict_f)))
             buf = cStringIO()
             str_let=""
             str_let_list=[]
             self.seen.clear()
+            self.last_counter=0
             if dict_f:
                 p = DagFathersMznPrinter(self.max_int_bit_size,buf,{},boolean_invalidate=False)
                 for sub_f in dict_f.keys():
