@@ -21,12 +21,13 @@ class MultiTypeLexErr(StandardError):
 
 class Omt2Mzn():
     #if flag bv = true bv array rap
-    def __init__(self,file_in,file_out,flag_bigand,max_int_bit_size,printer_opt,asoft_var_type):
+    def __init__(self,file_in,file_out,flag_bigand,max_int_bit_size,printer_opt,asoft_var_type,float_domains):
         self.serializer=MZNPrinter(printer_opt,max_int_bit_size)
         self.input_file=file_in
         self.output_file=file_out
         self.flag_bigand=flag_bigand
         self.asoft_var_type=asoft_var_type
+        self.float_domains=float_domains
 
 
     def startParsing(self):
@@ -440,7 +441,10 @@ class Omt2Mzn():
                 file_out.write("var 0.."+str(pow(2,int(bv_search.groups(0)[0]))-1)+" : "+str(var)+";\n")
                 #   file_out.write("constraint("+str(var)+">=0 /\ "+str(pow(2,int(bv_search.groups(0)[0])))+" > "+str(var)+");\n")
             elif "Real" in str(variables[var][0]):
-                file_out.write("var -3.402823e+38..3.402823e+38 : "+str(var)+";\n")
+                if self.float_domains==0:
+                    file_out.write("var -2147483648.0..2147483648: "+str(var)+";\n")
+                else:
+                    file_out.write("var -3.402823e+38..3.402823e+38 : "+str(var)+";\n")
                 #file_out.write("var float : "+str(var)+";\n")
             else:
                 typeD=variables[var][0]
@@ -517,6 +521,9 @@ if __name__ == "__main__":
                                                                                                 The default values is 32. The possible values are 32,64""")
     parser.add_argument("--printer_opt",type=int,default=0,choices=[0,1],help="""0: Default daggify print, it creates a new scopes for every subformula\n
                                                                         1: 2 Fathers daggify print, it creates a labeling exclusively for every boolean subformula with 2 fathers in the formula DAG""")
+    parser.add_argument("--float_domains",type=int,default=0,choices=[0,1],help="""Float Domains options:\n
+                                                                                   0:-2147483648.0..2147483648\n
+                                                                                   1:-3.402823e+38..3.402823e+38 """)
     args = parser.parse_args()
-    parser=Omt2Mzn(args.input_file,args.output_file,args.big_and,args.max_int_bit_size,args.printer_opt,args.asoft_var_type)
+    parser=Omt2Mzn(args.input_file,args.output_file,args.big_and,args.max_int_bit_size,args.printer_opt,args.asoft_var_type,args.float_domains)
     parser.startParsing()
