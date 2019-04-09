@@ -1,6 +1,0 @@
-examples/
-old_functions.txt
-pysmt-env/
-*.pyc
-__pycache__
-.vscode/

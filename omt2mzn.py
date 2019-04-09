@@ -1,10 +1,17 @@
 #!/usr/bin/env python
-'''
-Francesco Contaldo, 2018
-DISI University of Trento
-A Python Parser from OMT2MZN
-30/11/2018
-'''
+#   Copyright 2019 Franceso Contaldo
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 
 from pyomt.smtlib.parser import SmtLib20Parser
 from pyomt.printers_mzn import MZNPrinter
@@ -521,9 +528,7 @@ if __name__ == "__main__":
                                                                                                 The default values is 32. The possible values are 32,64""")
     parser.add_argument("--printer_opt",type=int,default=0,choices=[0,1],help="""0: Default daggify print, it creates a new scopes for every subformula\n
                                                                         1: 2 Fathers daggify print, it creates a labeling exclusively for every boolean subformula with 2 fathers in the formula DAG""")
-    parser.add_argument("--float_domains",type=int,default=0,choices=[0,1],help="""Float Domains options:\n
-                                                                                   0:-2147483648.0..2147483648\n
-                                                                                   1:-3.402823e+38..3.402823e+38 """)
+    parser.add_argument("--float_domains",type=int,default=0,choices=[0,1],help=" Float Domains options -> 0:-2147483648.0..2147483648  1:-3.402823e+38..3.402823e+38 ")
     args = parser.parse_args()
     parser=Omt2Mzn(args.input_file,args.output_file,args.big_and,args.max_int_bit_size,args.printer_opt,args.asoft_var_type,args.float_domains)
     parser.startParsing()

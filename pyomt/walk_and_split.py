@@ -1,4 +1,0 @@
-'''
-Walk and split 
-'''
-
