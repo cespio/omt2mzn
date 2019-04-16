@@ -509,13 +509,27 @@ class Omt2Mzn():
             for k in var_weight:
                 if cost in k:
                     str_ap.append("not("+str(k)+")*("+str(var_weight[k])+")")
+
             file_out.write("+".join(str_ap)+");\n")
-            file_out.write("constraint ( 0 <= "+cost+" /\ "+cost+" <= (")
             str_ap=[]
             for k in var_weight:
-                if cost in k:
+                if cost in k and eval(var_weight[k])<0:
                     str_ap.append("("+str(var_weight[k])+")")
-            file_out.write("+".join(str_ap)+"));\n")
+
+            file_out.write("constraint (( ")
+            if len(str_ap)==0:
+                file_out.write("0)")
+            else:
+                file_out.write("+".join(str_ap)+") ")
+            file_out.write(" <= "+cost+" /\ "+cost+" <= (")
+            str_ap=[]
+            for k in var_weight:
+                if cost in k and eval(var_weight[k])>=0:
+                    str_ap.append("("+str(var_weight[k])+")")
+            if len(str_ap)==0:
+                file_out.write("0));\n")
+            else:
+                file_out.write("+".join(str_ap)+"));\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
