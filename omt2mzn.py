@@ -139,10 +139,13 @@ class Omt2Mzn():
         var_dict=self.modify_type_assert_soft_var(asserts_soft_list,var_dict)
         var_dict=self.add_id_variables_opt(commands_list,var_dict)
         print("Finished to write the stack")
-        if set_priority_option == 'lex':    #lexicographic order
-            self.write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,out_file)
-        else:                               #box-  also the default one
-            self.write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_file)
+        if len(commands_list)==0:
+            self.write_stack_simple(var_dict,asserts_list,asserts_soft_list,out_file)
+        else:
+            if set_priority_option == 'lex':    #lexicographic order
+                self.write_stack_lex(var_dict,asserts_list,asserts_soft_list,commands_list,out_file)
+            else:                               #box-  also the default one
+                self.write_stack_box(var_dict,asserts_list,asserts_soft_list,commands_list,out_file)
 
 
     def modify_type_assert_soft_var(self,asserts_soft_list,var_dict):
@@ -436,6 +439,19 @@ class Omt2Mzn():
             file_out.close()
 
     ## ------  END BOX ------##
+
+    def write_stack_simple(self,var_dict,asserts_list,asserts_soft_list,out_file):
+        out_file=out_file.replace(".mzn","s.mzn")
+        file_out=open(out_file,"w")
+        print("writing variables")
+        self.write_list_variables(var_dict,file_out)
+        print("writing assertions")
+        self.write_assertions(asserts_list,file_out,var_dict)
+        print("writing soft")
+        self.write_assertions_soft(asserts_soft_list,file_out)
+        print("writing satisfy")
+        file_out.write("solve satisfy;\n")
+        file_out.close()
 
     def write_list_variables(self,variables,file_out):
         '''
